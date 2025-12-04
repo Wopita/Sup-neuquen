@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -179,7 +179,7 @@
                 <input type="date" id="trip-date" 
                        class="p-3 border border-gray-300 rounded-lg focus:ring-sup-light focus:border-sup-light shadow-sm col-span-1 md:col-span-1" required>
 
-                <!-- BOTÓN CON COLOR VERDE (bg-wind-good) - AHORA USANDO bg-green-600 para más contraste -->
+                <!-- BOTÓN CON COLOR VERDE (bg-green-600) -->
                 <button id="search-button"
                         class="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition duration-150 col-span-1 md:col-span-1">
                     Buscar Pronóstico
@@ -350,24 +350,24 @@
             let isDangerous = false;
             let dangerType = 'N/A';
 
-            // 1. Clasificación por velocidad
+            // 1. Clasificación por velocidad y asignación de clases ESTÁNDAR de Tailwind
             if (speed <= 10) {
-                color = 'bg-wind-good';
+                color = 'bg-green-500'; // Verde para Planchado
                 text = 'Lago Planchado';
             } else if (speed <= 20) {
-                color = 'bg-wind-caution';
+                color = 'bg-amber-500'; // Ámbar para Semi Planchado
                 text = 'Semi Planchado';
             } else if (speed <= 35) {
-                color = 'bg-wind-bad';
+                color = 'bg-red-500'; // Rojo para Picado
                 text = 'Lago Picado';
             } else { // > 35 km/h
-                color = 'bg-wind-danger';
+                color = 'bg-red-700'; // Rojo Oscuro para Extremo
                 text = 'PELIGROSO (Viento Extremo)';
                 isDangerous = true;
                 dangerType = 'Speed';
             }
 
-            // 2. ADVERTENCIA DE VIENTO OFFSHORE (Hacia adentro del lago)
+            // 2. ADVERTENCIA DE VIENTO OFFSHORE
             const bearingToOrigin = calculateBearing(lakeLat, lakeLon, originLat, originLon);
             
             const directionDifference = Math.abs(windDirection - bearingToOrigin);
@@ -375,7 +375,7 @@
             const isOffshore = (directionDifference > 135 && directionDifference < 225);
 
             if (isOffshore && speed > 15) { 
-                color = 'bg-wind-danger';
+                color = 'bg-red-700'; // Siempre Rojo Oscuro para Offshore peligroso
                 text = `OFFSHORE: ¡PELIGRO! Viento hacia adentro.`;
                 isDangerous = true;
                 dangerType = 'Offshore';
@@ -567,9 +567,9 @@
                         `;
 
                         if (status.isDangerous) {
-                            windElement.classList.add('p-2', 'bg-red-50', 'border-l-4', 'border-wind-danger');
+                            windElement.classList.add('p-2', 'bg-red-50', 'border-l-4', 'border-red-700'); // Usar red-700 para consistencia
                         } else {
-                            windElement.classList.remove('p-2', 'bg-red-50', 'border-l-4', 'border-wind-danger');
+                            windElement.classList.remove('p-2', 'bg-red-50', 'border-l-4', 'border-red-700');
                         }
                     }
                 } catch (error) {
@@ -707,7 +707,7 @@
                         </table>
                     </div>
                     
-                    <div class="mt-4 p-3 rounded-lg text-sm ${status.isDangerous ? 'bg-red-200 text-red-900 border-l-4 border-wind-danger' : 'bg-yellow-100 text-yellow-800'}">
+                    <div class="mt-4 p-3 rounded-lg text-sm ${status.isDangerous ? 'bg-red-200 text-red-900 border-l-4 border-red-700' : 'bg-yellow-100 text-yellow-800'}">
                         <span class="font-bold">Consejo SUP (Máximo Viento):</span> 
                         ${status.isDangerous 
                             ? (status.dangerType === 'Offshore' ? '¡ADVERTENCIA DE VUELO! El viento sopla hacia adentro del lago (Offshore), lo cual es muy peligroso, especialmente con estas velocidades.' : '¡PELIGRO! Viento muy fuerte (Picado/Extremo). Condiciones de remada extremadamente difíciles.')
