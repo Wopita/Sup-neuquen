@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUP BETA: Rastrador de Lagos y Vientos</title>
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carga de la biblioteca Leaflet para mapas -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha2d1-sPdwqH4zYn6tY5w0m5Wf2q3oD2Bv9Gf1wA1f2Z8H2sJd2sJd2"
+        crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha2d1-j7o9Fq7q9Fq7q9Fq7q9Fq7q9Fq7q9Fq7q9Fq7q9Fq7"
+        crossorigin=""></script>
+    <style>
+        /* Estilo para el mapa, asegurando que tenga una altura fija */
+        #map-container {
+            height: 60vh; /* 60% de la altura de la ventana */
+            min-height: 400px;
+        }
+        /* Configuración de fuentes y estilo global */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fc;
+        }
+        .lake-result:hover {
+            background-color: #e0f2fe; /* Light blue background on hover */
+            cursor: pointer;
+        }
+        /* Estilo para el indicador de viento */
+        .wind-indicator {
+            width: 1rem;
+            height: 1rem;
+            border-radius: 9999px; /* fully rounded */
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        /* Asegurar que el modal esté en la capa superior */
+        #wind-modal {
+            z-index: 9999 !important;
+        }
+        /* Estilo para filas de tabla al pasar el mouse */
+        .hourly-row:hover {
+            background-color: #e0f7fa; /* Light cyan on hover */
+        }
+
+        /* Estilo para la tabla de pronóstico por hora */
+        .hourly-table-container {
+            /* Fijo para asegurar el scroll horizontal en contenedores grandes */
+            max-width: 100%; 
+            overflow-x: auto; /* Permitir scroll horizontal */
+            overflow-y: hidden;
+            white-space: nowrap; /* Evita que las celdas se envuelvan */
+            padding-bottom: 10px; /* Espacio para la barra de desplazamiento */
+        }
+        .hourly-table {
+            display: inline-block; /* Permite el scroll horizontal */
+            min-width: 100%; /* Asegura que la tabla ocupe al menos el ancho completo */
+        }
+        .hourly-table th, .hourly-table td {
+            min-width: 80px; /* Ancho mínimo para cada columna de hora */
+            text-align: center;
+        }
+        .hourly-table th:first-child, .hourly-table td:first-child {
+             min-width: 100px; /* Más espacio para la hora */
+             text-align: left;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'sup-blue': '#1e40af',
+                        'sup-light': '#60a5fa',
+                        'wind-good': '#10b981', /* green */
+                        'wind-caution': '#f59e0b', /* amber */
+                        'wind-bad': '#ef4444', /* red */
+                        'wind-danger': '#7f1d1d', /* dark red for extreme danger */
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto bg-white shadow-xl rounded-xl p-6 md:p-10">
+
+        <!-- Título y Descripción -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-sup-blue mb-2">SUP BETA</h1>
+            <p class="text-gray-600">Pronóstico de viento por hora para los lagos cercanos a Neuquén.</p>
+        </header>
+
+        <!-- Origen Fijo y Selección de Fecha (Simplificado) -->
+        <div class="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <p class="block text-lg font-medium text-gray-700 mb-2">
+                Punto de Partida (Neuquén) y Fecha de Viaje:
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                
+                <!-- Ubicación Fija -->
+                <p id="fixed-address" class="p-3 bg-white border border-gray-300 rounded-lg shadow-sm font-semibold text-gray-800 col-span-1 md:col-span-1">
+                    Neuquén, Neuquén Capital (Fijo)
+                </p>
+
+                <!-- Selector de Fecha -->
+                <input type="date" id="trip-date" 
+                       class="p-3 border border-gray-300 rounded-lg focus:ring-sup-light focus:border-sup-light shadow-sm col-span-1 md:col-span-1" required>
+
+                <button id="search-button"
+                        class="px-6 py-3 bg-sup-blue text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-150 col-span-1 md:col-span-1">
+                    Buscar Pronóstico
+                </button>
+            </div>
+            <p id="status-message" class="mt-3 text-sm font-medium text-sup-blue"></p>
+        </div>
+
+        <!-- Contenedor del Mapa y Resultados -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Columna de Resultados -->
+            <div class="lg:col-span-1">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">Lagos Favoritos (Neuquén)</h2>
+                <div id="results-list" class="space-y-3 max-h-[400px] lg:max-h-[60vh] overflow-y-auto pr-2">
+                    <p class="text-gray-500">Buscando lagos...</p>
+                </div>
+            </div>
+
+            <!-- Columna del Mapa -->
+            <div class="lg:col-span-2">
+                <div id="map-container" class="rounded-lg shadow-inner border border-gray-300"></div>
+                <div id="map-info" class="mt-2 text-sm text-gray-500">
+                    <p id="map-radius-info">El círculo rojo en el mapa representa un radio de 150 km.</p>
+                    <p>Haz clic en un lago de la lista para ver el pronóstico detallado por hora.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal para Pronóstico del Viento (Oculto por defecto) -->
+        <div id="wind-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center p-4 z-50">
+            <!-- MODAL INTERIOR: Cambiamos max-w-2xl a max-w-4xl en sm: -->
+            <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg sm:max-w-4xl h-auto max-h-[90vh] flex flex-col transform transition-all">
+                <h3 id="wind-modal-title" class="text-2xl font-bold text-sup-blue mb-4">Pronóstico de Viento</h3>
+                <!-- Contenido con scroll vertical si es necesario -->
+                <div id="wind-modal-content" class="space-y-3 overflow-y-auto flex-grow">
+                    <p class="text-gray-700">Cargando datos del viento...</p>
+                </div>
+                <button onclick="document.getElementById('wind-modal').classList.add('hidden'); document.getElementById('wind-modal').classList.remove('flex');"
+                        class="mt-6 w-full px-4 py-2 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 transition">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONSTANTES Y VARIABLES GLOBALES ---
+        // Coordenadas de respaldo (Neuquén Capital)
+        const DEFAULT_LAT = -38.9516; 
+        const DEFAULT_LON = -68.0617; 
+        
+        // Distancia fija para el círculo de visualización
+        const MAX_DISTANCE_KM = 150; 
+        const MAP_TILES_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
+        const WIND_FETCH_LIMIT = 5; 
+        
+        let map;
+        let mapInitialized = false;
+        let originMarker = null;
+        let radiusCircle = null;
+        let lakeMarkers = L.layerGroup();
+        // Almacena las coordenadas de partida
+        let currentOrigin = { lat: DEFAULT_LAT, lon: DEFAULT_LON, name: 'Neuquén' }; 
+        
+        const searchButton = document.getElementById('search-button');
+        const statusMessage = document.getElementById('status-message');
+        const resultsList = document.getElementById('results-list');
+        const windModal = document.getElementById('wind-modal');
+        const windModalTitle = document.getElementById('wind-modal-title');
+        const windModalContent = document.getElementById('wind-modal-content');
+        const tripDateInput = document.getElementById('trip-date'); 
+
+        // Lagos principales de Neuquén
+        const GUARANTEED_LAKES = [
+            { name: "Lago Los Barreales", lat: -38.647, lon: -68.805, isGuaranteed: true, rating: 4.5, description: "Lago ideal para SUP con viento moderado. Grandes áreas de aguas planas en calmas." },
+            { name: "Lago Pellegrini", lat: -38.666, lon: -67.750, isGuaranteed: true, rating: 4.0, description: "Popular por su cercanía. Suele tener zonas de viento cruzado, ideal para windsurf." },
+            { name: "Embalse El Chocón", lat: -39.198, lon: -68.706, isGuaranteed: true, rating: 3.8, description: "Muy grande, el viento puede ser extremo. Perfecto para días de poca intensidad." }
+        ];
+
+        // Playita específica
+        const PLAYITAS_FAVORITAS = [
+            { name: "Mari Menuco - Playita SUP", lat: -38.6019, lon: -68.5492, isGuaranteed: true, isPlayita: true, rating: 4.8, description: "La mejor playita para iniciación y condiciones planas protegidas. Viento Off-shore peligroso." }
+        ];
+
+        // --- FUNCIONES DE UTILIDAD DE GEOGRAFÍA Y API ---
+
+        /**
+         * Implementa la lógica de reintento exponencial para llamadas a la API.
+         */
+        async function fetchWithRetry(url, options = {}, maxRetries = 5, delay = 1000) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.status === 429) { 
+                        console.warn(`[API] Tasa límite alcanzada. Reintentando en ${delay / 1000}s...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2; 
+                        continue;
+                    }
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response;
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        throw new Error(`[API] Fallo en la llamada después de ${maxRetries} reintentos: ${error.message}`);
+                    }
+                    console.warn(`[API] Error de fetch: ${error.message}. Reintentando en ${delay / 1000}s...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2; 
+                }
+            }
+        }
+
+        /**
+         * Calcula la distancia entre dos coordenadas (Haversine).
+         */
+        function haversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radio de la Tierra en km
+            const dLat = (lat2 - lat1) * (Math.PI / 180);
+            const dLon = (lon2 - lon1) * (Math.PI / 180);
+            const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c; // Distancia en km
+        }
+
+        /**
+         * Calcula el rumbo (bearing) de Point A a Point B en grados (0-360).
+         */
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const P = Math.PI / 180;
+            const phi1 = lat1 * P;
+            const phi2 = lat2 * P;
+            const lambda1 = lon1 * P;
+            const lambda2 = lon2 * P;
+
+            const y = Math.sin(lambda2 - lambda1) * Math.cos(phi2);
+            const x = Math.cos(phi1) * Math.sin(phi2) -
+                      Math.sin(phi1) * Math.cos(phi2) * Math.cos(lambda2 - lambda1);
+            
+            let bearing = Math.atan2(y, x) / P;
+            
+            // Convertir a 0-360 grados
+            return (bearing + 360) % 360; 
+        }
+
+        /**
+         * Determina el estado del lago basado en la velocidad del viento y si es offshore.
+         */
+        function getWindStatus(speed, windDirection, lakeLat, lakeLon, originLat, originLon) {
+            if (speed === null || isNaN(speed)) {
+                return { color: 'bg-gray-400', text: 'Viento N/D', isDangerous: false, dangerType: 'N/A' };
+            }
+            
+            let color, text;
+            let isDangerous = false;
+            let dangerType = 'N/A';
+
+            // 1. Clasificación por velocidad
+            if (speed <= 10) {
+                color = 'bg-wind-good';
+                text = 'Lago Planchado';
+            } else if (speed <= 20) {
+                color = 'bg-wind-caution';
+                text = 'Semi Planchado';
+            } else if (speed <= 35) {
+                color = 'bg-wind-bad';
+                text = 'Lago Picado';
+            } else { // > 35 km/h
+                color = 'bg-wind-danger';
+                text = 'PELIGROSO (Viento Extremo)';
+                isDangerous = true;
+                dangerType = 'Speed';
+            }
+
+            // 2. ADVERTENCIA DE VIENTO OFFSHORE (Hacia adentro del lago)
+            const bearingToOrigin = calculateBearing(lakeLat, lakeLon, originLat, originLon);
+            
+            const directionDifference = Math.abs(windDirection - bearingToOrigin);
+            // Viento Offshore si está en el cuadrante opuesto (180 +/- 45 grados)
+            const isOffshore = (directionDifference > 135 && directionDifference < 225);
+
+            if (isOffshore && speed > 15) { 
+                color = 'bg-wind-danger';
+                text = `OFFSHORE: ¡PELIGRO! Viento hacia adentro.`;
+                isDangerous = true;
+                dangerType = 'Offshore';
+            }
+
+            return { color, text, isDangerous, dangerType };
+        }
+        
+        // Función simple para convertir grados a dirección cardinal
+        function degToCardinal(deg) {
+            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            const index = Math.round((deg % 360) / 45);
+            return directions[index % 8];
+        }
+
+
+        // --- FUNCIONES DE MAPA Y VISUALIZACIÓN ---
+
+        /** Inicializa el mapa Leaflet. */
+        function initMap() {
+            if (mapInitialized) return;
+            map = L.map('map-container').setView([currentOrigin.lat, currentOrigin.lon], 10); 
+            L.tileLayer(MAP_TILES_URL, {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            }).addTo(map);
+            lakeMarkers.addTo(map);
+            mapInitialized = true;
+        }
+
+        /** Dibuja el punto de origen y el círculo de búsqueda en el mapa. */
+        function drawOriginAndRadius(lat, lon, name) {
+            const coords = [lat, lon];
+            
+            if (originMarker) map.removeLayer(originMarker);
+            if (radiusCircle) map.removeLayer(radiusCircle);
+            lakeMarkers.clearLayers();
+
+            originMarker = L.marker(coords, {
+                icon: L.divIcon({
+                    className: 'bg-red-700 text-white font-bold rounded-full w-8 h-8 flex items-center justify-center shadow-lg',
+                    html: '📍'
+                })
+            }).addTo(map)
+              .bindPopup(`<b>Punto de Origen: ${name}</b><br>Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`).openPopup();
+
+            // Usa la distancia fija de 150 km para visualización
+            radiusCircle = L.circle(coords, {
+                color: 'red',
+                fillColor: '#f03',
+                fillOpacity: 0.1,
+                radius: MAX_DISTANCE_KM * 1000 
+            }).addTo(map);
+
+            map.fitBounds(radiusCircle.getBounds(), { padding: [50, 50] });
+        }
+
+        /**
+         * Muestra los resultados de los lagos en la lista y en el mapa.
+         */
+        function displayLakes(lakes, selectedDate) {
+            resultsList.innerHTML = '';
+            lakeMarkers.clearLayers();
+
+            if (lakes.length === 0) {
+                resultsList.innerHTML = `<p class="text-gray-500">No se encontraron lagos favoritos cerca de Neuquén.</p>`;
+                return;
+            }
+            
+            statusMessage.textContent = `Se encontraron ${lakes.length} cuerpos de agua relevantes. Cargando pronóstico de viento para ${selectedDate}...`;
+
+
+            lakes.forEach((lake, index) => {
+                const name = lake.name || 'Cuerpo de Agua Desconocido';
+                const coords = [lake.lat, lake.lon];
+                const windId = `wind-status-${index}`;
+
+                // 1. Añadir marcador al mapa
+                const marker = L.marker(coords).addTo(lakeMarkers)
+                    .bindPopup(`<b>${name}</b><br>${lake.distance.toFixed(2)} km`);
+                
+                // Al hacer clic en el marcador, mostrar el pronóstico
+                marker.on('click', () => {
+                    fetchWindForecast(lake, selectedDate);
+                });
+
+
+                // 2. Añadir a la lista de resultados
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'lake-result p-3 border rounded-lg shadow-sm bg-white flex justify-between items-center';
+                
+                // Mostrar rating si existe
+                const ratingHtml = lake.rating ? 
+                    `<span class="text-xs text-yellow-500 font-bold ml-2">★ ${lake.rating.toFixed(1)}</span>` : '';
+
+                resultDiv.innerHTML = `
+                    <div>
+                        <p class="font-semibold text-gray-800">${index + 1}. ${name} ${ratingHtml}</p>
+                        <p class="text-sm text-gray-600">Distancia: <span class="font-bold text-sup-blue">${lake.distance.toFixed(2)} km</span></p>
+                        <p class="text-xs text-gray-400">(${lake.lat.toFixed(4)}, ${lake.lon.toFixed(4)})</p>
+                    </div>
+                    <div id="${windId}" class="flex flex-col items-end">
+                        <div class="wind-indicator-placeholder">
+                            <div class="animate-pulse bg-gray-200 w-16 h-4 rounded"></div>
+                        </div>
+                    </div>
+                `;
+                // Al hacer clic en la lista, centrar en el mapa y mostrar el pronóstico
+                resultDiv.addEventListener('click', () => {
+                    map.flyTo(coords, 10);
+                    marker.openPopup();
+                    fetchWindForecast(lake, selectedDate);
+                });
+
+                resultsList.appendChild(resultDiv);
+                lake.windElementId = windId; // Guardar el ID para actualización
+            });
+
+            // Después de mostrar la lista, comenzar a cargar el viento para los más cercanos
+            fetchAndDisplayWindForLakes(lakes, selectedDate);
+        }
+
+
+        // --- FUNCIONES DE LLAMADA A LA API DE VIENTO (Open-Meteo) ---
+
+        /**
+         * Obtiene el pronóstico de viento y temperatura por hora para una fecha específica.
+         */
+        async function getWindData(lat, lon, date) {
+            const windUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&start_date=${date}&end_date=${date}&hourly=temperature_2m,wind_speed_10m,wind_direction_10m&timezone=auto`;
+            
+            const response = await fetchWithRetry(windUrl);
+            const data = await response.json();
+            
+            if (!data.hourly || data.hourly.time.length === 0) {
+                return null;
+            }
+            
+            // Reestructurar los datos horarios en un array de objetos
+            const hourlyData = data.hourly.time.map((time, index) => ({
+                time: time,
+                temperature: data.hourly.temperature_2m[index],
+                speed: data.hourly.wind_speed_10m[index],
+                direction: data.hourly.wind_direction_10m[index]
+            }));
+
+            // Determinar la hora con el viento MÁS fuerte para el resumen principal
+            let maxWindHour = hourlyData.reduce((max, current) => 
+                (current.speed > max.speed ? current : max), 
+                { speed: -1, direction: -1 }
+            );
+
+            return {
+                hourly: hourlyData,
+                maxSpeed: maxWindHour.speed,
+                maxDirection: maxWindHour.direction
+            };
+        }
+
+        /**
+         * Fetches wind data for the closest N lakes and updates the UI.
+         */
+        async function fetchAndDisplayWindForLakes(lakes, selectedDate) {
+            const lakesToFetch = lakes.slice(0, WIND_FETCH_LIMIT);
+            const fetchPromises = lakesToFetch.map(async (lake, index) => {
+                await new Promise(resolve => setTimeout(resolve, index * 200)); 
+                
+                try {
+                    // Ahora getWindData devuelve el resumen (maxSpeed, maxDirection) y los datos horarios.
+                    const windData = await getWindData(lake.lat, lake.lon, selectedDate);
+                    
+                    if (!windData) throw new Error('No hourly data found');
+
+                    const speed = windData.maxSpeed;
+                    const direction = windData.maxDirection;
+
+                    const status = getWindStatus(speed, direction, 
+                        lake.lat, lake.lon, currentOrigin.lat, currentOrigin.lon); 
+                    
+                    const windElement = document.getElementById(lake.windElementId);
+                    if (windElement) {
+                        const speedText = speed !== null ? `${speed.toFixed(1)} km/h` : 'N/D';
+
+                        windElement.innerHTML = `
+                            <span class="font-bold text-lg text-gray-900">${speedText}</span>
+                            <div class="flex items-center mt-1">
+                                <span class="wind-indicator ${status.color}"></span>
+                                <span class="text-xs font-medium text-gray-600">${status.text}</span>
+                            </div>
+                        `;
+
+                        if (status.isDangerous) {
+                            windElement.classList.add('p-2', 'bg-red-50', 'border-l-4', 'border-wind-danger');
+                        } else {
+                            windElement.classList.remove('p-2', 'bg-red-50', 'border-l-4', 'border-wind-danger');
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error al cargar viento para el lago ${lake.name}:`, error);
+                    const windElement = document.getElementById(lake.windElementId);
+                    if (windElement) {
+                         windElement.innerHTML = '<span class="text-xs text-red-500">Error Viento</span>';
+                    }
+                }
+            });
+
+            await Promise.allSettled(fetchPromises);
+            statusMessage.textContent = `¡Búsqueda completada! Se encontraron ${lakes.length} cuerpos de agua. (Pronóstico cargado para ${selectedDate}).`;
+
+        }
+
+        /**
+         * Obtiene el pronóstico de viento detallado y lo muestra en el modal.
+         */
+        async function fetchWindForecast(lake, selectedDate) {
+            const { lat, lon, name, rating, description } = lake;
+            
+            windModalTitle.textContent = `Pronóstico de Viento: ${name} (${selectedDate})`;
+            windModalContent.innerHTML = '<div class="flex justify-center items-center h-20"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-sup-blue"></div><p class="ml-3 text-sup-blue">Cargando pronóstico detallado por hora...</p></div>';
+            
+            // CORRECCIÓN DEL ERROR: Eliminamos la manipulación de estilo de JavaScript
+            // y confiamos en las clases de Tailwind del HTML.
+            
+            windModal.classList.remove('hidden');
+            windModal.classList.add('flex');
+
+            try {
+                const windData = await getWindData(lat, lon, selectedDate);
+
+                if (!windData || windData.hourly.length === 0) {
+                    throw new Error('Datos de pronóstico por hora no disponibles para esta fecha.');
+                }
+                
+                const hourly = windData.hourly;
+                const maxSpeed = windData.maxSpeed;
+                const maxDirection = windData.maxDirection;
+                
+                const status = getWindStatus(maxSpeed, maxDirection, 
+                    lat, lon, currentOrigin.lat, currentOrigin.lon); 
+
+                // HTML para la recomendación/valoración
+                const recommendationHtml = rating ? `
+                    <div class="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg mb-4">
+                        <p class="font-bold text-yellow-800 flex items-center mb-1">
+                            <span class="text-2xl mr-2">⭐</span>
+                            Valoración SUP: <span class="text-lg font-extrabold ml-1">${rating.toFixed(1)}/5</span>
+                        </p>
+                        <p class="text-sm text-yellow-700">${description}</p>
+                    </div>
+                ` : '';
+                
+                // Construir la tabla de datos horarios
+                let tableHeader = '';
+                let tableRows = '';
+                
+                // Generar las columnas de tiempo para el encabezado
+                hourly.forEach(hourData => {
+                     const time = new Date(hourData.time).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+                     tableHeader += `<th class="p-2 text-center text-xs font-medium uppercase tracking-wider">${time}</th>`;
+                });
+                
+                // Generar filas de datos
+                const temperatures = hourly.map(d => d.temperature.toFixed(1) + '°C');
+                const speeds = hourly.map(d => d.speed.toFixed(1) + ' km/h');
+                const directions = hourly.map(d => degToCardinal(d.direction));
+                const states = hourly.map(d => getWindStatus(d.speed, d.direction, lat, lon, currentOrigin.lat, currentOrigin.lon));
+
+                // Fila de Temperatura
+                tableRows += `
+                    <tr>
+                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider bg-gray-100 sticky left-0 z-10">Temp.</th>
+                        ${temperatures.map(temp => `<td class="p-2 text-center">${temp}</td>`).join('')}
+                    </tr>
+                `;
+                
+                // Fila de Viento
+                tableRows += `
+                    <tr>
+                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider bg-gray-100 sticky left-0 z-10">Viento (km/h)</th>
+                        ${speeds.map(speed => `<td class="p-2 text-center">${speed}</td>`).join('')}
+                    </tr>
+                `;
+                
+                // Fila de Dirección
+                tableRows += `
+                    <tr>
+                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider bg-gray-100 sticky left-0 z-10">Dir.</th>
+                        ${directions.map(dir => `<td class="p-2 text-center">${dir}</td>`).join('')}
+                    </tr>
+                `;
+                
+                // Fila de Estado
+                tableRows += `
+                    <tr>
+                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider bg-gray-100 sticky left-0 z-10">Estado</th>
+                        ${states.map(state => `
+                            <td class="p-2 text-center text-xs whitespace-nowrap">
+                                <span class="wind-indicator ${state.color}"></span> ${state.text.replace(/Lago Planchado|Semi Planchado|Lago Picado|PELIGROSO|OFFSHORE/g, (match) => {
+                                    // Simplificar los estados para ahorrar espacio horizontal
+                                    if (match === 'Lago Planchado') return 'Planchado';
+                                    if (match === 'Semi Planchado') return 'Semi';
+                                    if (match === 'Lago Picado') return 'Picado';
+                                    if (match === 'PELIGROSO') return 'Peligro';
+                                    if (match === 'OFFSHORE') return 'Offshore';
+                                    return match;
+                                })}
+                            </td>
+                        `).join('')}
+                    </tr>
+                `;
+
+
+                // Contenido principal del modal (Resumen y Tabla)
+                windModalContent.innerHTML = `
+                    ${recommendationHtml}
+                    
+                    <p class="text-sm text-gray-600 mb-3">
+                        <span class="font-bold">Resumen Diario:</span> El viento máximo del día es de ${maxSpeed.toFixed(1)} km/h.
+                    </p>
+
+                    <!-- Contenedor con scroll horizontal -->
+                    <div class="hourly-table-container border rounded-lg shadow-inner">
+                        <table class="hourly-table divide-y divide-gray-200">
+                            <thead class="bg-sup-blue text-white sticky top-0">
+                                <tr>
+                                    <th class="p-2 text-left text-xs font-medium uppercase tracking-wider sticky left-0 z-20 bg-sup-blue">Hora</th>
+                                    ${tableHeader}
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200 text-sm">
+                                ${tableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-4 p-3 rounded-lg text-sm ${status.isDangerous ? 'bg-red-200 text-red-900 border-l-4 border-wind-danger' : 'bg-yellow-100 text-yellow-800'}">
+                        <span class="font-bold">Consejo SUP (Máximo Viento):</span> 
+                        ${status.isDangerous 
+                            ? (status.dangerType === 'Offshore' ? '¡ADVERTENCIA DE VUELO! El viento sopla hacia adentro del lago (Offshore), lo cual es muy peligroso, especialmente con estas velocidades.' : '¡PELIGRO! Viento muy fuerte (Picado/Extremo). Condiciones de remada extremadamente difíciles.')
+                            : `Las condiciones de remada se ven adecuadas durante los momentos de menor viento. Presta atención a las horas de **Semi Planchado** y **Picado**.`}
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error("Error al obtener el pronóstico del viento:", error);
+                windModalContent.innerHTML = `
+                    <div class="p-4 bg-red-100 text-red-700 rounded-lg">
+                        <p class="font-bold">Error al cargar el pronóstico:</p>
+                        <p class="text-sm">${error.message}. Por favor, selecciona una fecha dentro de los próximos 14 días.</p>
+                    </div>
+                `;
+            }
+        }
+
+
+        // --- FUNCIÓN DE CARGA DE LAGOS FIJOS ---
+        
+        /** Devuelve la lista de lagos garantizados cerca de Neuquén. */
+        function getFixedLakes() {
+            const allFixedLakes = [...GUARANTEED_LAKES, ...PLAYITAS_FAVORITAS];
+
+            return allFixedLakes
+                .map(lake => ({
+                    ...lake,
+                    // Calcular la distancia desde Neuquén (punto fijo)
+                    distance: haversineDistance(DEFAULT_LAT, DEFAULT_LON, lake.lat, lake.lon),
+                    id: lake.name.toLowerCase().replace(/\s/g, '-')
+                }))
+                .filter(lake => lake.distance <= MAX_DISTANCE_KM) // Filtro de 150km de Neuquén
+                .sort((a, b) => a.distance - b.distance);
+        }
+
+        // --- LÓGICA PRINCIPAL DE BÚSQUEDA (Simplificada) ---
+
+        /** Maneja el flujo de búsqueda de lagos. */
+        async function handleSearch() {
+            // Fijo: 150km de radio y Neuquén como origen
+            
+            const selectedDate = tripDateInput.value;
+            
+            if (!selectedDate) {
+                statusMessage.textContent = '¡Advertencia! Por favor, selecciona la fecha de tu viaje.';
+                return;
+            }
+
+            searchButton.disabled = true;
+            searchButton.textContent = 'Buscando...';
+            resultsList.innerHTML = '<div class="p-4 text-center text-gray-500">Cargando...</div>';
+
+            try {
+                // 1. Dibujar punto de origen y radio fijo
+                drawOriginAndRadius(DEFAULT_LAT, DEFAULT_LON, currentOrigin.name);
+
+                // 2. Usar la lista de lagos fijos garantizados
+                const lakes = getFixedLakes();
+
+                // 3. Mostrar resultados y comenzar a cargar el viento
+                displayLakes(lakes, selectedDate);
+
+            } catch (error) {
+                console.error("Error en el proceso de búsqueda:", error);
+                statusMessage.textContent = `Error: ${error.message}`;
+                resultsList.innerHTML = `<p class="text-red-500 p-4">Error al procesar la solicitud. Detalles: ${error.message}</p>`;
+            } finally {
+                searchButton.disabled = false;
+                searchButton.textContent = 'Buscar Pronóstico';
+            }
+        }
+
+        // --- INICIALIZACIÓN Y EVENT LISTENERS ---
+
+        /** Inicializa el selector de fecha para que el mínimo sea hoy. */
+        function initializeDateInput() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            
+            const minDate = `${year}-${month}-${day}`;
+            
+            tripDateInput.setAttribute('min', minDate);
+            tripDateInput.value = minDate; // Selecciona la fecha de hoy por defecto
+        }
+
+        window.onload = function() {
+            // 1. Inicializar el mapa
+            initMap();
+            
+            // 2. Inicializar el selector de fecha 
+            initializeDateInput();
+
+            // 3. Asignar el listener al botón de búsqueda
+            searchButton.addEventListener('click', () => handleSearch());
+            
+            // 4. Ejecutar la búsqueda automáticamente al cargar la página 
+            handleSearch();
+        }
+    </script>
+</body>
+</html>
