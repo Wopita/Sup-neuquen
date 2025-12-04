@@ -203,7 +203,7 @@
             <div class="lg:col-span-2">
                 <div id="map-container" class="rounded-lg shadow-inner border border-gray-300"></div>
                 <div id="map-info" class="mt-2 text-sm text-gray-500">
-                    <p id="map-radius-info">El círculo rojo en el mapa representa un radio de 150 km.</p>
+                    <p id="map-radius-info">El círculo celeste en el mapa representa un radio de 150 km.</p>
                     <p>Haz clic en un lago de la lista para ver el pronóstico detallado por hora.</p>
                 </div>
             </div>
@@ -423,8 +423,9 @@
 
             // Usa la distancia fija de 150 km para visualización
             radiusCircle = L.circle(coords, {
-                color: 'red',
-                fillColor: '#f03',
+                // CAMBIADO: color y fillColor a un tono celeste o azul claro
+                color: '#60a5fa',         // sup-light blue for border
+                fillColor: '#60a5fa',     // sup-light blue for fill
                 fillOpacity: 0.1,
                 radius: MAX_DISTANCE_KM * 1000 
             }).addTo(map);
@@ -567,7 +568,7 @@
                         `;
 
                         if (status.isDangerous) {
-                            windElement.classList.add('p-2', 'bg-red-50', 'border-l-4', 'border-red-700'); // Usar red-700 para consistencia
+                            windElement.classList.add('p-2', 'bg-red-50', 'border-l-4', 'border-red-700'); 
                         } else {
                             windElement.classList.remove('p-2', 'bg-red-50', 'border-l-4', 'border-red-700');
                         }
