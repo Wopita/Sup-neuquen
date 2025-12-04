@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SUP BETA: Rastrador de Lagos y Vientos</title>
+    <title>CLIMA PARA LA TABLAPANDILLA: Pronóstico de Viento</title>
     <!-- Carga de Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Carga de la biblioteca Leaflet para mapas -->
@@ -67,30 +67,99 @@
              text-align: left;
         }
     </style>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'sup-blue': '#1e40af',
-                        'sup-light': '#60a5fa',
-                        'wind-good': '#10b981', /* green */
-                        'wind-caution': '#f59e0b', /* amber */
-                        'wind-bad': '#ef4444', /* red */
-                        'wind-danger': '#7f1d1d', /* dark red for extreme danger */
-                    }
+    <!-- Carga de módulos de Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // --- CONSTANTES GLOBALES DE CANVAS/FIREBASE ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let db;
+        let auth;
+        const visitCounterElement = document.getElementById('visit-counter');
+
+        // --- LÓGICA DEL CONTADOR DE VISITAS ---
+        async function initializeFirebaseAndCounter() {
+            if (!firebaseConfig) {
+                console.error("Firebase configuration is missing. Cannot initialize counter.");
+                visitCounterElement.textContent = ' (Contador no disponible)';
+                return;
+            }
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // 1. Authenticate (using custom token if available, otherwise anonymously)
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
                 }
+                
+                // 2. Increment and display the counter
+                await incrementVisitCounter();
+
+            } catch (error) {
+                console.error("Firebase initialization or authentication failed:", error);
+                visitCounterElement.textContent = ' (Contador no disponible)';
             }
         }
+
+        async function incrementVisitCounter() {
+            if (!db) return;
+
+            // Ruta pública: /artifacts/{appId}/public/data/visits/total_visits
+            const counterRef = doc(db, 'artifacts', appId, 'public', 'data', 'visits', 'total_visits');
+            
+            try {
+                // Use transaction for atomic increment
+                const newCount = await runTransaction(db, async (transaction) => {
+                    const counterDoc = await transaction.get(counterRef);
+                    let currentCount = 0;
+                    
+                    if (counterDoc.exists()) {
+                        currentCount = counterDoc.data().count || 0;
+                    }
+                    
+                    const newCount = currentCount + 1;
+                    
+                    // Set the new count
+                    transaction.set(counterRef, { count: newCount });
+                    
+                    return newCount;
+                });
+
+                visitCounterElement.textContent = `(Visitas: ${newCount.toLocaleString()})`;
+
+            } catch (error) {
+                console.error("Transaction failed to increment counter:", error);
+                visitCounterElement.textContent = ' (Error de contador)';
+            }
+        }
+        
+        // Exportar funciones para que estén disponibles globalmente
+        window.initializeApp = initializeApp;
+        window.getAuth = getAuth;
+        window.getFirestore = getFirestore;
+        window.doc = doc;
+        window.runTransaction = runTransaction;
+        window.initializeFirebaseAndCounter = initializeFirebaseAndCounter;
+
     </script>
 </head>
 <body class="p-4 md:p-8">
 
     <div class="max-w-7xl mx-auto bg-white shadow-xl rounded-xl p-6 md:p-10">
 
-        <!-- Título y Descripción -->
+        <!-- Título y Descripción (NUEVO NOMBRE) -->
         <header class="text-center mb-8">
-            <h1 class="text-4xl font-extrabold text-sup-blue mb-2">SUP BETA</h1>
+            <h1 class="text-4xl font-extrabold text-sup-blue mb-2">CLIMA PARA LA TABLAPANDILLA</h1>
             <p class="text-gray-600">Pronóstico de viento por hora para los lagos cercanos a Neuquén.</p>
         </header>
 
@@ -110,8 +179,9 @@
                 <input type="date" id="trip-date" 
                        class="p-3 border border-gray-300 rounded-lg focus:ring-sup-light focus:border-sup-light shadow-sm col-span-1 md:col-span-1" required>
 
+                <!-- BOTÓN CON COLOR VERDE (bg-wind-good) - AHORA USANDO bg-green-600 para más contraste -->
                 <button id="search-button"
-                        class="px-6 py-3 bg-sup-blue text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-150 col-span-1 md:col-span-1">
+                        class="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition duration-150 col-span-1 md:col-span-1">
                     Buscar Pronóstico
                 </button>
             </div>
@@ -155,9 +225,15 @@
             </div>
         </div>
     </div>
+    
+    <!-- Firma de Wopita y Contador de Visitas -->
+    <footer class="mt-4 text-center text-xs text-gray-400 flex justify-center items-center space-x-2">
+        <span>Creado por Wopita</span>
+        <span id="visit-counter" class="font-bold text-gray-500">Cargando...</span>
+    </footer>
 
     <script>
-        // --- CONSTANTES Y VARIABLES GLOBALES ---
+        // --- CONSTANTES Y VARIABLES GLOBALES (NO FIREBASE) ---
         // Coordenadas de respaldo (Neuquén Capital)
         const DEFAULT_LAT = -38.9516; 
         const DEFAULT_LON = -68.0617; 
@@ -182,7 +258,9 @@
         const windModalTitle = document.getElementById('wind-modal-title');
         const windModalContent = document.getElementById('wind-modal-content');
         const tripDateInput = document.getElementById('trip-date'); 
-
+        
+        // El elemento del contador se inicializa al cargar el módulo de Firebase arriba
+        
         // Lagos principales de Neuquén
         const GUARANTEED_LAKES = [
             { name: "Lago Los Barreales", lat: -38.647, lon: -68.805, isGuaranteed: true, rating: 4.5, description: "Lago ideal para SUP con viento moderado. Grandes áreas de aguas planas en calmas." },
@@ -517,9 +595,6 @@
             windModalTitle.textContent = `Pronóstico de Viento: ${name} (${selectedDate})`;
             windModalContent.innerHTML = '<div class="flex justify-center items-center h-20"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-sup-blue"></div><p class="ml-3 text-sup-blue">Cargando pronóstico detallado por hora...</p></div>';
             
-            // CORRECCIÓN DEL ERROR: Eliminamos la manipulación de estilo de JavaScript
-            // y confiamos en las clases de Tailwind del HTML.
-            
             windModal.classList.remove('hidden');
             windModal.classList.add('flex');
 
@@ -722,6 +797,13 @@
         }
 
         window.onload = function() {
+            // Inicializar Firebase y el Contador ANTES que el resto
+            if (typeof window.initializeFirebaseAndCounter === 'function') {
+                window.initializeFirebaseAndCounter();
+            } else {
+                document.getElementById('visit-counter').textContent = ' (Contador no inicializado)';
+            }
+
             // 1. Inicializar el mapa
             initMap();
             
