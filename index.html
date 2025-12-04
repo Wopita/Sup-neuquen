@@ -630,8 +630,9 @@
                 
                 // Generar las columnas de tiempo para el encabezado
                 hourly.forEach(hourData => {
-                     const time = new Date(hourData.time).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-                     tableHeader += `<th class="p-2 text-center text-xs font-medium uppercase tracking-wider">${time}</th>`;
+                     // CORRECCIÓN: Ahora agregamos la clase text-gray-900 aquí
+                     const time = new Date(hourData.time).toLocaleTimeString('es-AR', { hour: 'numeric', minute: '2-digit' });
+                     tableHeader += `<th class="p-2 text-center text-xs font-medium uppercase tracking-wider text-gray-900">${time}</th>`;
                 });
                 
                 // Generar filas de datos
