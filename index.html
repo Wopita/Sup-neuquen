@@ -25,7 +25,7 @@
 
     <!-- Carga de la biblioteca Leaflet para mapas -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha2d1-sPdwqH4zYn6tY5w0m5Wf2q3oD2Bv9Gf1wA1f2Z8H2sJd2sJd2"
+        integrity="sha2d1-sPdwqH4zYn6tY5w0m5Wf2q3oD2Bv9Gf1wA1f2Z8S4S4S4"
         crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha2d1-j7o9Fq7q9Fq7q9Fq7q9Fq7q9Fq7q9Fq7q9Fq7"
@@ -96,95 +96,6 @@
             margin-bottom: 2rem;
         }
     </style>
-    <!-- Carga de módulos de Firebase -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        // --- TODO: [IMPORTANTE] REEMPLAZAR CON TU CONFIGURACIÓN DE FIREBASE ---
-        // Si no tienes una, el contador NO funcionará fuera de Canvas.
-        const FIREBASE_CONFIG = {
-            apiKey: "TU_API_KEY", // Reemplazar con tu clave API
-            authDomain: "TU_AUTH_DOMAIN", // Reemplazar con tu dominio de auth
-            projectId: "TU_PROJECT_ID", // Reemplazar con tu ID de proyecto
-            storageBucket: "TU_STORAGE_BUCKET",
-            messagingSenderId: "TU_MESSAGING_SENDER_ID",
-            appId: "TU_APP_ID" // Reemplazar con tu App ID
-        };
-        const APP_NAMESPACE = 'clima-tablapandilla'; // Namespace fijo para la app
-        
-        let db;
-        let auth;
-        const visitCounterElement = document.getElementById('visit-counter');
-
-        // --- LÓGICA DEL CONTADOR DE VISITAS ---
-        async function initializeFirebaseAndCounter() {
-            // Verificar si la configuración ha sido actualizada (usando un chequeo simple)
-            if (FIREBASE_CONFIG.projectId.includes("TU_PROJECT_ID")) {
-                console.error("Firebase configuration is missing or default. Cannot initialize counter.");
-                visitCounterElement.textContent = ' (Contador desactivado, actualiza config.)';
-                document.getElementById('header-slogan').textContent = "Pronóstico de viento por hora para los lagos cercanos a Neuquén.";
-                return;
-            }
-
-            try {
-                const app = initializeApp(FIREBASE_CONFIG);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
-                // 1. Authenticate (usando autenticación anónima estándar para portabilidad)
-                await signInAnonymously(auth);
-                
-                // 2. Increment and display the counter
-                await incrementVisitCounter();
-                
-                // 3. Establecer el slogan por defecto
-                document.getElementById('header-slogan').textContent = "Pronóstico de viento por hora para los lagos cercanos a Neuquén.";
-
-            } catch (error) {
-                console.error("Firebase initialization or authentication failed:", error);
-                visitCounterElement.textContent = ' (Error de contador)';
-                document.getElementById('header-slogan').textContent = "Pronóstico de viento por hora para los lagos cercanos a Neuquén.";
-            }
-        }
-
-        async function incrementVisitCounter() {
-            if (!db) return;
-
-            // Ruta pública, usando un namespace fijo: /artifacts/{APP_NAMESPACE}/public/data/visits/total_visits
-            const counterRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'visits', 'total_visits');
-            
-            try {
-                // Use transaction for atomic increment
-                const newCount = await runTransaction(db, async (transaction) => {
-                    const counterDoc = await transaction.get(counterRef);
-                    let currentCount = 0;
-                    
-                    if (counterDoc.exists()) {
-                        currentCount = counterDoc.data().count || 0;
-                    }
-                    
-                    const newCount = currentCount + 1;
-                    
-                    // Set the new count
-                    transaction.set(counterRef, { count: newCount });
-                    
-                    return newCount;
-                });
-
-                visitCounterElement.textContent = `(Visitas: ${newCount.toLocaleString()})`;
-
-            } catch (error) {
-                console.error("Transaction failed to increment counter:", error);
-                visitCounterElement.textContent = ' (Error de contador)';
-            }
-        }
-        
-        // Exportar funciones para que estén disponibles globalmente
-        window.initializeFirebaseAndCounter = initializeFirebaseAndCounter;
-        window.getAuth = getAuth; // Mantenemos la función para openGoogleMaps
-    </script>
 </head>
 <body class="p-4 md:p-8">
 
@@ -196,7 +107,7 @@
             <div class="p-0">
                 <h1 class="text-4xl font-extrabold text-sup-blue mb-2">CLIMA PARA LA TABLAPANDILLA</h1>
                 <!-- Slogan fijo -->
-                <p id="header-slogan" class="text-gray-600 text-lg font-medium">Cargando...</p>
+                <p id="header-slogan" class="text-gray-600 text-lg font-medium">Pronóstico de viento por hora para los lagos cercanos a Neuquén.</p>
             </div>
         </header>
 
@@ -263,14 +174,13 @@
         </div>
     </div>
     
-    <!-- Firma de Wopita y Contador de Visitas -->
+    <!-- Firma de Wopita (El contador ha sido eliminado) -->
     <footer class="mt-4 text-center text-xs text-gray-400 flex justify-center items-center space-x-2">
         <span>Creado por Wopita</span>
-        <span id="visit-counter" class="font-bold text-gray-500">Cargando...</span>
     </footer>
 
     <script>
-        // --- CONSTANTES Y VARIABLES GLOBALES (NO FIREBASE) ---
+        // --- CONSTANTES Y VARIABLES GLOBALES ---
         // Coordenadas de respaldo (Neuquén Capital)
         const DEFAULT_LAT = -38.9516; 
         const DEFAULT_LON = -68.0617; 
@@ -295,8 +205,6 @@
         const windModalTitle = document.getElementById('wind-modal-title');
         const windModalContent = document.getElementById('wind-modal-content');
         const tripDateInput = document.getElementById('trip-date'); 
-        
-        // El elemento del contador se inicializa al cargar el módulo de Firebase arriba
         
         // Lagos principales de Neuquén
         const GUARANTEED_LAKES = [
@@ -935,23 +843,18 @@
         }
 
         window.onload = function() {
-            // 1. Inicializar Firebase y el Contador
-            if (typeof window.initializeFirebaseAndCounter === 'function') {
-                window.initializeFirebaseAndCounter();
-            } else {
-                document.getElementById('visit-counter').textContent = ' (Error de inicialización)';
-            }
-
-            // 2. Inicializar el mapa
+            // Se elimina la inicialización de Firebase
+            
+            // 1. Inicializar el mapa
             initMap();
             
-            // 3. Inicializar el selector de fecha 
+            // 2. Inicializar el selector de fecha 
             initializeDateInput();
 
-            // 4. Asignar el listener al botón de búsqueda
+            // 3. Asignar el listener al botón de búsqueda
             searchButton.addEventListener('click', () => handleSearch());
             
-            // 5. Ejecutar la búsqueda automáticamente al cargar la página 
+            // 4. Ejecutar la búsqueda automáticamente al cargar la página 
             handleSearch();
         }
     </script>
