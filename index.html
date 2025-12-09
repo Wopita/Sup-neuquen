@@ -4,14 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CLIMA PARA LA TABLAPANDILLA: Pronóstico de Viento</title>
-    <!-- Carga de Tailwind CSS -->
+    <!-- Carga de Tailwind CSS con configuración personalizada -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configuración de colores personalizados para Tailwind (sup-blue y sup-light)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'sup-blue': '#1e40af', // Azul corporativo oscuro
+                        'sup-light': '#60a5fa', // Azul claro para foco
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
     <!-- Carga de la biblioteca Leaflet para mapas -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha2d1-sPdwqH4zYn6tY5w0m5Wf2q3oD2Bv9Gf1wA1f2Z8H2sJd2sJd2"
         crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha2d1-j7o9Fq7q9Fq7q9Fq7q9Fq7q9Fq7q9Fq7q9Fq7q9Fq7"
+        integrity="sha2d1-j7o9Fq7q9Fq7q9Fq7q9Fq7q9Fq7q9Fq7q9Fq7"
         crossorigin=""></script>
     <style>
         /* Estilo para el mapa, asegurando que tenga una altura fija */
@@ -65,6 +82,12 @@
         .hourly-table th:first-child, .hourly-table td:first-child {
              min-width: 100px; /* Más espacio para la hora */
              text-align: left;
+             /* Fondo para la columna de la izquierda para que destaque */
+             background-color: #f3f4f6;
+        }
+        .hourly-table th:first-child {
+            /* Asegura que el encabezado fijo de la izquierda sea visible */
+             z-index: 30;
         }
     </style>
     <!-- Carga de módulos de Firebase -->
@@ -177,7 +200,7 @@
 
                 <!-- Selector de Fecha -->
                 <input type="date" id="trip-date" 
-                       class="p-3 border border-gray-300 rounded-lg focus:ring-sup-light focus:border-sup-light shadow-sm col-span-1 md:col-span-1" required>
+                        class="p-3 border border-gray-300 rounded-lg focus:ring-sup-light focus:border-sup-light shadow-sm col-span-1 md:col-span-1" required>
 
                 <!-- BOTÓN CON COLOR VERDE (bg-green-600) -->
                 <button id="search-button"
@@ -391,6 +414,41 @@
             return directions[index % 8];
         }
 
+        /**
+         * Devuelve un SVG de flecha rotada según la dirección del viento (en grados).
+         */
+        function getWindArrowSVG(deg) {
+            // Un SVG simple de una flecha que apunta hacia ARRIBA (Norte = 0 grados).
+            // La rotación se aplica en CSS usando transform: rotate().
+            const rotation = deg - 180; // La flecha debe apuntar *hacia* donde va el viento, por eso se rota 180 grados.
+                                        // 0 grados (N) el viento va de N a S. El icono debe apuntar S.
+            return `
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-sup-blue transform transition-transform duration-300" 
+                     style="transform: rotate(${rotation}deg);" 
+                     viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <polyline points="19 12 12 19 5 12"></polyline>
+                </svg>
+            `;
+        }
+
+        /**
+         * Formatea una fecha YYYY-MM-DD a un formato más amigable (ej: Lunes, 15 de Diciembre).
+         */
+        function formatReadableDate(dateString) {
+            try {
+                const date = new Date(dateString + 'T12:00:00'); // Añadir T12:00:00 para evitar problemas de zona horaria
+                return date.toLocaleDateString('es-AR', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+            } catch (e) {
+                return dateString;
+            }
+        }
+
 
         // --- FUNCIONES DE MAPA Y VISUALIZACIÓN ---
 
@@ -424,8 +482,8 @@
             // Usa la distancia fija de 150 km para visualización
             radiusCircle = L.circle(coords, {
                 // CAMBIADO: color y fillColor a un tono celeste o azul claro
-                color: '#60a5fa',         // sup-light blue for border
-                fillColor: '#60a5fa',     // sup-light blue for fill
+                color: '#60a5fa',       // sup-light blue for border
+                fillColor: '#60a5fa',      // sup-light blue for fill
                 fillOpacity: 0.1,
                 radius: MAX_DISTANCE_KM * 1000 
             }).addTo(map);
@@ -593,7 +651,10 @@
         async function fetchWindForecast(lake, selectedDate) {
             const { lat, lon, name, rating, description } = lake;
             
-            windModalTitle.textContent = `Pronóstico de Viento: ${name} (${selectedDate})`;
+            // Mejorar el título del modal con el día de la semana
+            const readableDate = formatReadableDate(selectedDate);
+            windModalTitle.textContent = `Pronóstico de Viento: ${name} (${readableDate})`; 
+            
             windModalContent.innerHTML = '<div class="flex justify-center items-center h-20"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-sup-blue"></div><p class="ml-3 text-sup-blue">Cargando pronóstico detallado por hora...</p></div>';
             
             windModal.classList.remove('hidden');
@@ -613,6 +674,11 @@
                 const status = getWindStatus(maxSpeed, maxDirection, 
                     lat, lon, currentOrigin.lat, currentOrigin.lon); 
 
+                // Calcular la dirección de la orilla (Land Bearing)
+                const bearingToOrigin = calculateBearing(lat, lon, currentOrigin.lat, currentOrigin.lon);
+                const shoreDirection = degToCardinal(bearingToOrigin);
+                const shoreBearing = bearingToOrigin.toFixed(0);
+
                 // HTML para la recomendación/valoración
                 const recommendationHtml = rating ? `
                     <div class="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg mb-4">
@@ -623,28 +689,36 @@
                         <p class="text-sm text-yellow-700">${description}</p>
                     </div>
                 ` : '';
-                
+
+                // HTML para la orientación de la orilla (NUEVO)
+                const shoreOrientationHtml = `
+                    <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4 text-sm text-gray-800">
+                        <span class="font-bold text-sup-blue">Orientación de la Orilla (hacia Neuquén):</span>
+                        La orilla (asumida como el punto más seguro) está aproximadamente al **${shoreDirection}** (${shoreBearing}°). 
+                        El viento **Offshore** sopla desde el agua hacia esta dirección, lo que significa peligro.
+                    </div>
+                `;
+
                 // Construir la tabla de datos horarios
                 let tableHeader = '';
                 let tableRows = '';
                 
-                // Generar las columnas de tiempo para el encabezado
+                // 1. Fila de Encabezado (Horas)
                 hourly.forEach(hourData => {
-                     // CORRECCIÓN: Ahora agregamos la clase text-gray-900 aquí
                      const time = new Date(hourData.time).toLocaleTimeString('es-AR', { hour: 'numeric', minute: '2-digit' });
                      tableHeader += `<th class="p-2 text-center text-xs font-medium uppercase tracking-wider text-gray-900">${time}</th>`;
                 });
                 
-                // Generar filas de datos
+                // 2. Filas de Datos
                 const temperatures = hourly.map(d => d.temperature.toFixed(1) + '°C');
                 const speeds = hourly.map(d => d.speed.toFixed(1) + ' km/h');
-                const directions = hourly.map(d => degToCardinal(d.direction));
+                const directions = hourly.map(d => ({ cardinal: degToCardinal(d.direction), degrees: d.direction }));
                 const states = hourly.map(d => getWindStatus(d.speed, d.direction, lat, lon, currentOrigin.lat, currentOrigin.lon));
 
                 // Fila de Temperatura
                 tableRows += `
                     <tr>
-                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider bg-gray-100 sticky left-0 z-10">Temp.</th>
+                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider text-gray-700 sticky left-0 z-10">Temp.</th>
                         ${temperatures.map(temp => `<td class="p-2 text-center">${temp}</td>`).join('')}
                     </tr>
                 `;
@@ -652,23 +726,38 @@
                 // Fila de Viento
                 tableRows += `
                     <tr>
-                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider bg-gray-100 sticky left-0 z-10">Viento (km/h)</th>
+                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider text-gray-700 sticky left-0 z-10">Viento (km/h)</th>
                         ${speeds.map(speed => `<td class="p-2 text-center">${speed}</td>`).join('')}
                     </tr>
                 `;
                 
-                // Fila de Dirección
+                // Fila de Dirección (ACTUALIZADO: Usando flechas SVG y indicador Offshore)
                 tableRows += `
                     <tr>
-                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider bg-gray-100 sticky left-0 z-10">Dir.</th>
-                        ${directions.map(dir => `<td class="p-2 text-center">${dir}</td>`).join('')}
+                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider text-gray-700 sticky left-0 z-10">Dir.</th>
+                        ${directions.map((dir, index) => {
+                            const isOffshore = states[index].dangerType === 'Offshore';
+                            // Icono de alerta Offshore (🚫)
+                            const offshoreIndicator = isOffshore
+                                ? `<span title="¡Peligro! Viento Offshore" class="text-red-600 font-extrabold ml-1">🚫</span>`
+                                : '';
+
+                            return `
+                                <td class="p-2 text-center">
+                                    <div class="flex flex-col items-center">
+                                        ${getWindArrowSVG(dir.degrees)}
+                                        <span class="text-xs font-medium ${isOffshore ? 'text-red-600' : 'text-gray-500'}">${dir.cardinal}${offshoreIndicator}</span>
+                                    </div>
+                                </td>
+                            `;
+                        }).join('')}
                     </tr>
                 `;
                 
                 // Fila de Estado
                 tableRows += `
                     <tr>
-                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider bg-gray-100 sticky left-0 z-10">Estado</th>
+                        <th class="p-2 text-left text-xs font-medium uppercase tracking-wider text-gray-700 sticky left-0 z-10">Estado</th>
                         ${states.map(state => `
                             <td class="p-2 text-center text-xs whitespace-nowrap">
                                 <span class="wind-indicator ${state.color}"></span> ${state.text.replace(/Lago Planchado|Semi Planchado|Lago Picado|PELIGROSO|OFFSHORE/g, (match) => {
@@ -689,6 +778,7 @@
                 // Contenido principal del modal (Resumen y Tabla)
                 windModalContent.innerHTML = `
                     ${recommendationHtml}
+                    ${shoreOrientationHtml} <!-- NUEVO: Contexto de Orientación de la Orilla -->
                     
                     <p class="text-sm text-gray-600 mb-3">
                         <span class="font-bold">Resumen Diario:</span> El viento máximo del día es de ${maxSpeed.toFixed(1)} km/h.
@@ -696,10 +786,10 @@
 
                     <!-- Contenedor con scroll horizontal -->
                     <div class="hourly-table-container border rounded-lg shadow-inner">
-                        <table class="hourly-table divide-y divide-gray-200">
-                            <thead class="bg-sup-blue text-white sticky top-0">
+                        <table class="hourly-table divide-y divide-gray-200 w-full">
+                            <thead class="bg-gray-200 text-gray-900 sticky top-0">
                                 <tr>
-                                    <th class="p-2 text-left text-xs font-medium uppercase tracking-wider sticky left-0 z-20 bg-sup-blue">Hora</th>
+                                    <th class="p-2 text-left text-xs font-medium uppercase tracking-wider sticky left-0 z-20 bg-gray-200">Hora</th>
                                     ${tableHeader}
                                 </tr>
                             </thead>
