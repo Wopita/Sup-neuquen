@@ -89,12 +89,26 @@
             /* Asegura que el encabezado fijo de la izquierda sea visible */
              z-index: 30;
         }
+        /* Estilo para el banner con imagen de fondo */
+        #main-header {
+            background-size: cover;
+            background-position: center;
+            min-height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        #header-overlay {
+            background-color: rgba(30, 64, 175, 0.7); /* sup-blue con opacidad */
+            z-index: 10;
+        }
     </style>
-    <!-- Carga de módulos de Firebase -->
+    <!-- Carga de módulos de Firebase (Añadido getDoc y setDoc) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, runTransaction, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- CONSTANTES GLOBALES DE CANVAS/FIREBASE ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -104,12 +118,20 @@
         let db;
         let auth;
         const visitCounterElement = document.getElementById('visit-counter');
+        const configDocPath = ['artifacts', appId, 'public', 'data', 'config', 'homepage_settings'];
+        const DEFAULT_CONFIG = {
+            slogan: "¡Tu guía de viento para el Stand Up Paddle en el Alto Valle!",
+            bannerImageUrl: "https://placehold.co/1200x200/1e40af/ffffff?text=Wopita+SUP+Forecast"
+        };
 
-        // --- LÓGICA DEL CONTADOR DE VISITAS ---
+
+        // --- LÓGICA DEL CONTADOR DE VISITAS Y CONFIGURACIÓN ---
         async function initializeFirebaseAndCounter() {
             if (!firebaseConfig) {
-                console.error("Firebase configuration is missing. Cannot initialize counter.");
+                console.error("Firebase configuration is missing. Cannot initialize.");
                 visitCounterElement.textContent = ' (Contador no disponible)';
+                // Continuar cargando la configuración con valores por defecto si Firebase falla
+                loadConfig(DEFAULT_CONFIG); 
                 return;
             }
 
@@ -128,9 +150,14 @@
                 // 2. Increment and display the counter
                 await incrementVisitCounter();
 
+                // 3. Load initial configuration
+                await loadConfig();
+
             } catch (error) {
                 console.error("Firebase initialization or authentication failed:", error);
                 visitCounterElement.textContent = ' (Contador no disponible)';
+                // Cargar configuración por defecto si hay un error
+                loadConfig(DEFAULT_CONFIG); 
             }
         }
 
@@ -165,6 +192,118 @@
                 visitCounterElement.textContent = ' (Error de contador)';
             }
         }
+
+        /**
+         * Carga la configuración visual (slogan, banner) desde Firestore o usa valores por defecto.
+         */
+        async function loadConfig(fallbackConfig) {
+            let config = fallbackConfig || DEFAULT_CONFIG;
+            
+            if (db) {
+                try {
+                    const configRef = doc(db, ...configDocPath);
+                    const configSnap = await getDoc(configRef);
+                    if (configSnap.exists()) {
+                        config = configSnap.data();
+                    } else if (!fallbackConfig) {
+                        // Si no existe y no estamos en fallback, creamos el documento con la config por defecto
+                        await setDoc(configRef, DEFAULT_CONFIG);
+                    }
+                } catch (error) {
+                    console.error("Error al cargar la configuración de Firestore:", error);
+                }
+            }
+
+            // Aplicar configuración a la UI
+            document.getElementById('header-slogan').textContent = config.slogan || DEFAULT_CONFIG.slogan;
+            const headerElement = document.getElementById('main-header');
+            headerElement.style.backgroundImage = `url('${config.bannerImageUrl || DEFAULT_CONFIG.bannerImageUrl}')`;
+
+            // Rellenar el formulario del admin si existe
+            const sloganInput = document.getElementById('admin-slogan');
+            const bannerInput = document.getElementById('admin-banner-url');
+            if (sloganInput) sloganInput.value = config.slogan || DEFAULT_CONFIG.slogan;
+            if (bannerInput) bannerInput.value = config.bannerImageUrl || DEFAULT_CONFIG.bannerImageUrl;
+
+            console.log('Configuración cargada:', config);
+        }
+
+        /**
+         * Guarda la configuración visual en Firestore.
+         */
+        async function saveConfig() {
+            const saveButton = document.getElementById('save-config-button');
+            const statusDiv = document.getElementById('admin-status');
+            
+            const newSlogan = document.getElementById('admin-slogan').value;
+            const newBannerUrl = document.getElementById('admin-banner-url').value;
+
+            if (!newSlogan || !newBannerUrl) {
+                statusDiv.className = 'text-red-600 font-bold';
+                statusDiv.textContent = 'Error: Los campos no pueden estar vacíos.';
+                return;
+            }
+
+            saveButton.disabled = true;
+            saveButton.textContent = 'Guardando...';
+            statusDiv.textContent = 'Guardando cambios en Firestore...';
+
+            const newConfig = {
+                slogan: newSlogan,
+                bannerImageUrl: newBannerUrl
+            };
+            
+            if (!db) {
+                 statusDiv.className = 'text-red-600 font-bold';
+                 statusDiv.textContent = 'Error: Firebase no está disponible para guardar.';
+                 saveButton.disabled = false;
+                 saveButton.textContent = 'Guardar Configuración';
+                 return;
+            }
+
+            try {
+                const configRef = doc(db, ...configDocPath);
+                await setDoc(configRef, newConfig);
+                
+                // Actualizar la UI inmediatamente
+                document.getElementById('header-slogan').textContent = newConfig.slogan;
+                document.getElementById('main-header').style.backgroundImage = `url('${newConfig.bannerImageUrl}')`;
+                
+                statusDiv.className = 'text-green-600 font-bold';
+                statusDiv.textContent = '✅ Configuración guardada y aplicada con éxito.';
+            } catch (error) {
+                console.error("Error al guardar la configuración:", error);
+                statusDiv.className = 'text-red-600 font-bold';
+                statusDiv.textContent = `Error al guardar: ${error.message}`;
+            } finally {
+                saveButton.disabled = false;
+                saveButton.textContent = 'Guardar Configuración';
+                setTimeout(() => statusDiv.textContent = '', 5000); // Limpiar mensaje de estado
+            }
+        }
+
+        /**
+         * Muestra u oculta el panel de administración.
+         */
+        function toggleAdminPanel() {
+            const adminPanel = document.getElementById('admin-panel');
+            const adminButton = document.getElementById('admin-button');
+            
+            if (adminPanel.classList.contains('hidden')) {
+                // CAMBIO: Usamos un código simple en lugar de un password real
+                const code = prompt("Introduce el código de acceso (Pista: Es mi nombre)"); 
+                if (code && code.toLowerCase() === 'wopita') { 
+                    adminPanel.classList.remove('hidden');
+                    adminButton.classList.add('bg-gray-700');
+                    document.getElementById('admin-status').textContent = '';
+                } else {
+                    alert("Código incorrecto. Acceso denegado."); // Usamos alert aquí como es una acción administrativa simple/oculta
+                }
+            } else {
+                adminPanel.classList.add('hidden');
+                adminButton.classList.remove('bg-gray-700');
+            }
+        }
         
         // Exportar funciones para que estén disponibles globalmente
         window.initializeApp = initializeApp;
@@ -173,17 +312,64 @@
         window.doc = doc;
         window.runTransaction = runTransaction;
         window.initializeFirebaseAndCounter = initializeFirebaseAndCounter;
+        window.toggleAdminPanel = toggleAdminPanel;
+        window.saveConfig = saveConfig;
 
     </script>
 </head>
 <body class="p-4 md:p-8">
 
+    <!-- Panel de Administración (Oculto por defecto) -->
+    <div id="admin-panel" class="fixed inset-0 bg-gray-900 bg-opacity-95 hidden items-center justify-center p-4 z-[10000]">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg transform transition-all">
+            <h3 class="text-2xl font-bold text-red-600 mb-4 border-b pb-2">⚙️ Panel de Administración</h3>
+            <p class="text-sm text-gray-700 mb-4">Modifica el eslogan y la imagen de fondo del encabezado principal.</p>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="admin-slogan" class="block text-sm font-medium text-gray-700">Eslogan Principal</label>
+                    <input type="text" id="admin-slogan"
+                           class="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-sup-light focus:border-sup-light">
+                </div>
+                <div>
+                    <label for="admin-banner-url" class="block text-sm font-medium text-gray-700">URL de Imagen de Fondo (Banner)</label>
+                    <input type="url" id="admin-banner-url"
+                           class="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-sup-light focus:border-sup-light">
+                </div>
+            </div>
+
+            <p id="admin-status" class="mt-4 text-center text-sm font-medium h-4"></p>
+
+            <button id="save-config-button" onclick="saveConfig()"
+                    class="mt-6 w-full px-4 py-3 bg-sup-blue text-white font-semibold rounded-lg shadow-md hover:bg-sup-blue/90 transition">
+                Guardar Configuración
+            </button>
+            <button onclick="toggleAdminPanel()"
+                    class="mt-3 w-full px-4 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-sm hover:bg-gray-400 transition">
+                Cerrar Panel
+            </button>
+        </div>
+    </div>
+
+
     <div class="max-w-7xl mx-auto bg-white shadow-xl rounded-xl p-6 md:p-10">
 
-        <!-- Título y Descripción (NUEVO NOMBRE) -->
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-extrabold text-sup-blue mb-2">CLIMA PARA LA TABLAPANDILLA</h1>
-            <p class="text-gray-600">Pronóstico de viento por hora para los lagos cercanos a Neuquén.</p>
+        <!-- Nuevo Contenedor de Encabezado/Banner (Se le aplica la imagen de fondo) -->
+        <header id="main-header" class="mb-8 rounded-xl shadow-lg transition duration-500">
+            <!-- Overlay para asegurar la legibilidad del texto -->
+            <div id="header-overlay" class="absolute inset-0 rounded-xl"></div>
+            
+            <div class="text-center relative z-20 p-6">
+                <!-- Botón de Admin (Flotante a la izquierda) -->
+                <button id="admin-button" onclick="toggleAdminPanel()" 
+                        class="absolute top-4 right-4 md:right-auto md:left-4 p-2 bg-gray-600 text-white rounded-lg shadow-lg hover:bg-gray-700 transition duration-150">
+                    ⚙️ Admin
+                </button>
+
+                <h1 class="text-4xl font-extrabold text-white mb-2">CLIMA PARA LA TABLAPANDILLA</h1>
+                <!-- Slogan configurable cargado desde Firestore -->
+                <p id="header-slogan" class="text-white text-lg font-medium">Cargando...</p>
+            </div>
         </header>
 
         <!-- Origen Fijo y Selección de Fecha (Simplificado) -->
@@ -399,9 +585,11 @@
 
             if (isOffshore && speed > 15) { 
                 color = 'bg-red-700'; // Siempre Rojo Oscuro para Offshore peligroso
-                text = `OFFSHORE: ¡PELIGRO! Viento hacia adentro.`;
+                // CAMBIADO: 'OFFSHORE' por 'ACOTACIÓN' en la descripción del estado
+                text = `ACOTACIÓN: ¡PELIGRO! Viento hacia adentro.`;
                 isDangerous = true;
-                dangerType = 'Offshore';
+                // CAMBIADO: 'Offshore' por 'Acotacion' en el tipo de peligro
+                dangerType = 'Acotacion'; 
             }
 
             return { color, text, isDangerous, dangerType };
@@ -690,12 +878,12 @@
                     </div>
                 ` : '';
 
-                // HTML para la orientación de la orilla (NUEVO)
+                // HTML para la orientación de la orilla (ACTUALIZADO: Usando "Acotación")
                 const shoreOrientationHtml = `
                     <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4 text-sm text-gray-800">
                         <span class="font-bold text-sup-blue">Orientación de la Orilla (hacia Neuquén):</span>
                         La orilla (asumida como el punto más seguro) está aproximadamente al **${shoreDirection}** (${shoreBearing}°). 
-                        El viento **Offshore** sopla desde el agua hacia esta dirección, lo que significa peligro.
+                        El viento **hacia adentro (Acotación)** sopla desde el agua hacia esta dirección, lo que significa peligro.
                     </div>
                 `;
 
@@ -731,22 +919,23 @@
                     </tr>
                 `;
                 
-                // Fila de Dirección (ACTUALIZADO: Usando flechas SVG y indicador Offshore)
+                // Fila de Dirección (ACTUALIZADO: Usando flechas SVG y indicador Acotación)
                 tableRows += `
                     <tr>
                         <th class="p-2 text-left text-xs font-medium uppercase tracking-wider text-gray-700 sticky left-0 z-10">Dir.</th>
                         ${directions.map((dir, index) => {
-                            const isOffshore = states[index].dangerType === 'Offshore';
+                            // Cambiado de 'Offshore' a 'Acotacion'
+                            const isAcotacion = states[index].dangerType === 'Acotacion'; 
                             // Icono de alerta Offshore (🚫)
-                            const offshoreIndicator = isOffshore
-                                ? `<span title="¡Peligro! Viento Offshore" class="text-red-600 font-extrabold ml-1">🚫</span>`
+                            const offshoreIndicator = isAcotacion
+                                ? `<span title="¡Peligro! Viento hacia adentro" class="text-red-600 font-extrabold ml-1">🚫</span>`
                                 : '';
 
                             return `
                                 <td class="p-2 text-center">
                                     <div class="flex flex-col items-center">
                                         ${getWindArrowSVG(dir.degrees)}
-                                        <span class="text-xs font-medium ${isOffshore ? 'text-red-600' : 'text-gray-500'}">${dir.cardinal}${offshoreIndicator}</span>
+                                        <span class="text-xs font-medium ${isAcotacion ? 'text-red-600' : 'text-gray-500'}">${dir.cardinal}${offshoreIndicator}</span>
                                     </div>
                                 </td>
                             `;
@@ -760,13 +949,14 @@
                         <th class="p-2 text-left text-xs font-medium uppercase tracking-wider text-gray-700 sticky left-0 z-10">Estado</th>
                         ${states.map(state => `
                             <td class="p-2 text-center text-xs whitespace-nowrap">
-                                <span class="wind-indicator ${state.color}"></span> ${state.text.replace(/Lago Planchado|Semi Planchado|Lago Picado|PELIGROSO|OFFSHORE/g, (match) => {
+                                <span class="wind-indicator ${state.color}"></span> ${state.text.replace(/Lago Planchado|Semi Planchado|Lago Picado|PELIGROSO|ACOTACIÓN/g, (match) => {
                                     // Simplificar los estados para ahorrar espacio horizontal
                                     if (match === 'Lago Planchado') return 'Planchado';
                                     if (match === 'Semi Planchado') return 'Semi';
                                     if (match === 'Lago Picado') return 'Picado';
                                     if (match === 'PELIGROSO') return 'Peligro';
-                                    if (match === 'OFFSHORE') return 'Offshore';
+                                    // Cambiado 'OFFSHORE' por 'Acotación'
+                                    if (match === 'ACOTACIÓN') return 'Acotación'; 
                                     return match;
                                 })}
                             </td>
@@ -778,7 +968,7 @@
                 // Contenido principal del modal (Resumen y Tabla)
                 windModalContent.innerHTML = `
                     ${recommendationHtml}
-                    ${shoreOrientationHtml} <!-- NUEVO: Contexto de Orientación de la Orilla -->
+                    ${shoreOrientationHtml} <!-- Contexto de Orientación de la Orilla -->
                     
                     <p class="text-sm text-gray-600 mb-3">
                         <span class="font-bold">Resumen Diario:</span> El viento máximo del día es de ${maxSpeed.toFixed(1)} km/h.
@@ -802,7 +992,7 @@
                     <div class="mt-4 p-3 rounded-lg text-sm ${status.isDangerous ? 'bg-red-200 text-red-900 border-l-4 border-red-700' : 'bg-yellow-100 text-yellow-800'}">
                         <span class="font-bold">Consejo SUP (Máximo Viento):</span> 
                         ${status.isDangerous 
-                            ? (status.dangerType === 'Offshore' ? '¡ADVERTENCIA DE VUELO! El viento sopla hacia adentro del lago (Offshore), lo cual es muy peligroso, especialmente con estas velocidades.' : '¡PELIGRO! Viento muy fuerte (Picado/Extremo). Condiciones de remada extremadamente difíciles.')
+                            ? (status.dangerType === 'Acotacion' ? '¡ADVERTENCIA DE VUELO! El viento sopla hacia adentro del lago (**Acotación**), lo cual es muy peligroso, especialmente con estas velocidades.' : '¡PELIGRO! Viento muy fuerte (Picado/Extremo). Condiciones de remada extremadamente difíciles.')
                             : `Las condiciones de remada se ven adecuadas durante los momentos de menor viento. Presta atención a las horas de **Semi Planchado** y **Picado**.`}
                     </div>
                 `;
