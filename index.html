@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CLIMA PARA LA TABLAPANDILLA: Pronóstico de Viento</title>
+    <title>VIENTO EN PLAYITAS CERCANAS</title>
     <!-- Carga de Tailwind CSS con configuración personalizada -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -304,6 +304,20 @@
                 adminButton.classList.remove('bg-gray-700');
             }
         }
+
+        /**
+         * Abre Google Maps con la ruta desde Neuquén hasta el lago seleccionado.
+         */
+        function openGoogleMaps(lakeLat, lakeLon) {
+            const originLat = currentOrigin.lat;
+            const originLon = currentOrigin.lon;
+            
+            // Construir la URL de Google Maps para obtener la dirección (dir)
+            const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${lakeLat},${lakeLon}&travelmode=driving`;
+
+            // Abrir en una nueva ventana/pestaña
+            window.open(mapsUrl, '_blank');
+        }
         
         // Exportar funciones para que estén disponibles globalmente
         window.initializeApp = initializeApp;
@@ -314,6 +328,7 @@
         window.initializeFirebaseAndCounter = initializeFirebaseAndCounter;
         window.toggleAdminPanel = toggleAdminPanel;
         window.saveConfig = saveConfig;
+        window.openGoogleMaps = openGoogleMaps; // Exportar la nueva función
 
     </script>
 </head>
@@ -867,6 +882,19 @@
                 const shoreDirection = degToCardinal(bearingToOrigin);
                 const shoreBearing = bearingToOrigin.toFixed(0);
 
+                // --- NUEVO BOTÓN DE GOOGLE MAPS ---
+                const mapsButtonHtml = `
+                    <button onclick="openGoogleMaps(${lat}, ${lon})"
+                            class="px-4 py-2 mb-4 w-full bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-150 flex items-center justify-center space-x-2">
+                        <!-- Icono de ruta SVG -->
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"/>
+                            <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                        <span>GUÍA EN GOOGLE MAPS</span>
+                    </button>
+                `;
+
                 // HTML para la recomendación/valoración
                 const recommendationHtml = rating ? `
                     <div class="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg mb-4">
@@ -967,7 +995,8 @@
 
                 // Contenido principal del modal (Resumen y Tabla)
                 windModalContent.innerHTML = `
-                    ${recommendationHtml}
+                    ${mapsButtonHtml} <!-- AÑADIDO: Botón de Google Maps -->
+                    ${recommendationHtml} <!-- Fila de valoración/descripción -->
                     ${shoreOrientationHtml} <!-- Contexto de Orientación de la Orilla -->
                     
                     <p class="text-sm text-gray-600 mb-3">
