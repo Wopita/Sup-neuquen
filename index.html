@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VIENTO EN PLAYITAS CERCANAS</title>
+    <title>CLIMA PARA LA TABLAPANDILLA: Pronóstico de Viento</title>
     <!-- Carga de Tailwind CSS con configuración personalizada -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -89,83 +89,71 @@
             /* Asegura que el encabezado fijo de la izquierda sea visible */
              z-index: 30;
         }
-        /* Estilo para el banner con imagen de fondo */
+        /* Estilo para el encabezado sin imagen de fondo (diseño limpio) */
         #main-header {
-            background-size: cover;
-            background-position: center;
-            min-height: 150px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-        }
-        #header-overlay {
-            background-color: rgba(30, 64, 175, 0.7); /* sup-blue con opacidad */
-            z-index: 10;
+            min-height: 50px; /* Altura más corta sin imagen */
+            padding: 1rem 0;
+            margin-bottom: 2rem;
         }
     </style>
-    <!-- Carga de módulos de Firebase (Añadido getDoc y setDoc) -->
+    <!-- Carga de módulos de Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, runTransaction, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // --- CONSTANTES GLOBALES DE CANVAS/FIREBASE ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // --- TODO: [IMPORTANTE] REEMPLAZAR CON TU CONFIGURACIÓN DE FIREBASE ---
+        // Si no tienes una, el contador NO funcionará fuera de Canvas.
+        const FIREBASE_CONFIG = {
+            apiKey: "TU_API_KEY", // Reemplazar con tu clave API
+            authDomain: "TU_AUTH_DOMAIN", // Reemplazar con tu dominio de auth
+            projectId: "TU_PROJECT_ID", // Reemplazar con tu ID de proyecto
+            storageBucket: "TU_STORAGE_BUCKET",
+            messagingSenderId: "TU_MESSAGING_SENDER_ID",
+            appId: "TU_APP_ID" // Reemplazar con tu App ID
+        };
+        const APP_NAMESPACE = 'clima-tablapandilla'; // Namespace fijo para la app
         
         let db;
         let auth;
         const visitCounterElement = document.getElementById('visit-counter');
-        const configDocPath = ['artifacts', appId, 'public', 'data', 'config', 'homepage_settings'];
-        const DEFAULT_CONFIG = {
-            slogan: "¡Tu guía de viento para el Stand Up Paddle en el Alto Valle!",
-            bannerImageUrl: "https://placehold.co/1200x200/1e40af/ffffff?text=Wopita+SUP+Forecast"
-        };
 
-
-        // --- LÓGICA DEL CONTADOR DE VISITAS Y CONFIGURACIÓN ---
+        // --- LÓGICA DEL CONTADOR DE VISITAS ---
         async function initializeFirebaseAndCounter() {
-            if (!firebaseConfig) {
-                console.error("Firebase configuration is missing. Cannot initialize.");
-                visitCounterElement.textContent = ' (Contador no disponible)';
-                // Continuar cargando la configuración con valores por defecto si Firebase falla
-                loadConfig(DEFAULT_CONFIG); 
+            // Verificar si la configuración ha sido actualizada (usando un chequeo simple)
+            if (FIREBASE_CONFIG.projectId.includes("TU_PROJECT_ID")) {
+                console.error("Firebase configuration is missing or default. Cannot initialize counter.");
+                visitCounterElement.textContent = ' (Contador desactivado, actualiza config.)';
+                document.getElementById('header-slogan').textContent = "Pronóstico de viento por hora para los lagos cercanos a Neuquén.";
                 return;
             }
 
             try {
-                const app = initializeApp(firebaseConfig);
+                const app = initializeApp(FIREBASE_CONFIG);
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // 1. Authenticate (using custom token if available, otherwise anonymously)
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                // 1. Authenticate (usando autenticación anónima estándar para portabilidad)
+                await signInAnonymously(auth);
                 
                 // 2. Increment and display the counter
                 await incrementVisitCounter();
-
-                // 3. Load initial configuration
-                await loadConfig();
+                
+                // 3. Establecer el slogan por defecto
+                document.getElementById('header-slogan').textContent = "Pronóstico de viento por hora para los lagos cercanos a Neuquén.";
 
             } catch (error) {
                 console.error("Firebase initialization or authentication failed:", error);
-                visitCounterElement.textContent = ' (Contador no disponible)';
-                // Cargar configuración por defecto si hay un error
-                loadConfig(DEFAULT_CONFIG); 
+                visitCounterElement.textContent = ' (Error de contador)';
+                document.getElementById('header-slogan').textContent = "Pronóstico de viento por hora para los lagos cercanos a Neuquén.";
             }
         }
 
         async function incrementVisitCounter() {
             if (!db) return;
 
-            // Ruta pública: /artifacts/{appId}/public/data/visits/total_visits
-            const counterRef = doc(db, 'artifacts', appId, 'public', 'data', 'visits', 'total_visits');
+            // Ruta pública, usando un namespace fijo: /artifacts/{APP_NAMESPACE}/public/data/visits/total_visits
+            const counterRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'visits', 'total_visits');
             
             try {
                 // Use transaction for atomic increment
@@ -192,198 +180,23 @@
                 visitCounterElement.textContent = ' (Error de contador)';
             }
         }
-
-        /**
-         * Carga la configuración visual (slogan, banner) desde Firestore o usa valores por defecto.
-         */
-        async function loadConfig(fallbackConfig) {
-            let config = fallbackConfig || DEFAULT_CONFIG;
-            
-            if (db) {
-                try {
-                    const configRef = doc(db, ...configDocPath);
-                    const configSnap = await getDoc(configRef);
-                    if (configSnap.exists()) {
-                        config = configSnap.data();
-                    } else if (!fallbackConfig) {
-                        // Si no existe y no estamos en fallback, creamos el documento con la config por defecto
-                        await setDoc(configRef, DEFAULT_CONFIG);
-                    }
-                } catch (error) {
-                    console.error("Error al cargar la configuración de Firestore:", error);
-                }
-            }
-
-            // Aplicar configuración a la UI
-            document.getElementById('header-slogan').textContent = config.slogan || DEFAULT_CONFIG.slogan;
-            const headerElement = document.getElementById('main-header');
-            headerElement.style.backgroundImage = `url('${config.bannerImageUrl || DEFAULT_CONFIG.bannerImageUrl}')`;
-
-            // Rellenar el formulario del admin si existe
-            const sloganInput = document.getElementById('admin-slogan');
-            const bannerInput = document.getElementById('admin-banner-url');
-            if (sloganInput) sloganInput.value = config.slogan || DEFAULT_CONFIG.slogan;
-            if (bannerInput) bannerInput.value = config.bannerImageUrl || DEFAULT_CONFIG.bannerImageUrl;
-
-            console.log('Configuración cargada:', config);
-        }
-
-        /**
-         * Guarda la configuración visual en Firestore.
-         */
-        async function saveConfig() {
-            const saveButton = document.getElementById('save-config-button');
-            const statusDiv = document.getElementById('admin-status');
-            
-            const newSlogan = document.getElementById('admin-slogan').value;
-            const newBannerUrl = document.getElementById('admin-banner-url').value;
-
-            if (!newSlogan || !newBannerUrl) {
-                statusDiv.className = 'text-red-600 font-bold';
-                statusDiv.textContent = 'Error: Los campos no pueden estar vacíos.';
-                return;
-            }
-
-            saveButton.disabled = true;
-            saveButton.textContent = 'Guardando...';
-            statusDiv.textContent = 'Guardando cambios en Firestore...';
-
-            const newConfig = {
-                slogan: newSlogan,
-                bannerImageUrl: newBannerUrl
-            };
-            
-            if (!db) {
-                 statusDiv.className = 'text-red-600 font-bold';
-                 statusDiv.textContent = 'Error: Firebase no está disponible para guardar.';
-                 saveButton.disabled = false;
-                 saveButton.textContent = 'Guardar Configuración';
-                 return;
-            }
-
-            try {
-                const configRef = doc(db, ...configDocPath);
-                await setDoc(configRef, newConfig);
-                
-                // Actualizar la UI inmediatamente
-                document.getElementById('header-slogan').textContent = newConfig.slogan;
-                document.getElementById('main-header').style.backgroundImage = `url('${newConfig.bannerImageUrl}')`;
-                
-                statusDiv.className = 'text-green-600 font-bold';
-                statusDiv.textContent = '✅ Configuración guardada y aplicada con éxito.';
-            } catch (error) {
-                console.error("Error al guardar la configuración:", error);
-                statusDiv.className = 'text-red-600 font-bold';
-                statusDiv.textContent = `Error al guardar: ${error.message}`;
-            } finally {
-                saveButton.disabled = false;
-                saveButton.textContent = 'Guardar Configuración';
-                setTimeout(() => statusDiv.textContent = '', 5000); // Limpiar mensaje de estado
-            }
-        }
-
-        /**
-         * Muestra u oculta el panel de administración.
-         */
-        function toggleAdminPanel() {
-            const adminPanel = document.getElementById('admin-panel');
-            const adminButton = document.getElementById('admin-button');
-            
-            if (adminPanel.classList.contains('hidden')) {
-                // CAMBIO: Usamos un código simple en lugar de un password real
-                const code = prompt("Introduce el código de acceso (Pista: Es mi nombre)"); 
-                if (code && code.toLowerCase() === 'wopita') { 
-                    adminPanel.classList.remove('hidden');
-                    adminButton.classList.add('bg-gray-700');
-                    document.getElementById('admin-status').textContent = '';
-                } else {
-                    alert("Código incorrecto. Acceso denegado."); // Usamos alert aquí como es una acción administrativa simple/oculta
-                }
-            } else {
-                adminPanel.classList.add('hidden');
-                adminButton.classList.remove('bg-gray-700');
-            }
-        }
-
-        /**
-         * Abre Google Maps con la ruta desde Neuquén hasta el lago seleccionado.
-         */
-        function openGoogleMaps(lakeLat, lakeLon) {
-            const originLat = currentOrigin.lat;
-            const originLon = currentOrigin.lon;
-            
-            // Construir la URL de Google Maps para obtener la dirección (dir)
-            const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${lakeLat},${lakeLon}&travelmode=driving`;
-
-            // Abrir en una nueva ventana/pestaña
-            window.open(mapsUrl, '_blank');
-        }
         
         // Exportar funciones para que estén disponibles globalmente
-        window.initializeApp = initializeApp;
-        window.getAuth = getAuth;
-        window.getFirestore = getFirestore;
-        window.doc = doc;
-        window.runTransaction = runTransaction;
         window.initializeFirebaseAndCounter = initializeFirebaseAndCounter;
-        window.toggleAdminPanel = toggleAdminPanel;
-        window.saveConfig = saveConfig;
-        window.openGoogleMaps = openGoogleMaps; // Exportar la nueva función
-
+        window.getAuth = getAuth; // Mantenemos la función para openGoogleMaps
     </script>
 </head>
 <body class="p-4 md:p-8">
 
-    <!-- Panel de Administración (Oculto por defecto) -->
-    <div id="admin-panel" class="fixed inset-0 bg-gray-900 bg-opacity-95 hidden items-center justify-center p-4 z-[10000]">
-        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg transform transition-all">
-            <h3 class="text-2xl font-bold text-red-600 mb-4 border-b pb-2">⚙️ Panel de Administración</h3>
-            <p class="text-sm text-gray-700 mb-4">Modifica el eslogan y la imagen de fondo del encabezado principal.</p>
-
-            <div class="space-y-4">
-                <div>
-                    <label for="admin-slogan" class="block text-sm font-medium text-gray-700">Eslogan Principal</label>
-                    <input type="text" id="admin-slogan"
-                           class="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-sup-light focus:border-sup-light">
-                </div>
-                <div>
-                    <label for="admin-banner-url" class="block text-sm font-medium text-gray-700">URL de Imagen de Fondo (Banner)</label>
-                    <input type="url" id="admin-banner-url"
-                           class="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-sup-light focus:border-sup-light">
-                </div>
-            </div>
-
-            <p id="admin-status" class="mt-4 text-center text-sm font-medium h-4"></p>
-
-            <button id="save-config-button" onclick="saveConfig()"
-                    class="mt-6 w-full px-4 py-3 bg-sup-blue text-white font-semibold rounded-lg shadow-md hover:bg-sup-blue/90 transition">
-                Guardar Configuración
-            </button>
-            <button onclick="toggleAdminPanel()"
-                    class="mt-3 w-full px-4 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-sm hover:bg-gray-400 transition">
-                Cerrar Panel
-            </button>
-        </div>
-    </div>
-
-
     <div class="max-w-7xl mx-auto bg-white shadow-xl rounded-xl p-6 md:p-10">
 
-        <!-- Nuevo Contenedor de Encabezado/Banner (Se le aplica la imagen de fondo) -->
-        <header id="main-header" class="mb-8 rounded-xl shadow-lg transition duration-500">
-            <!-- Overlay para asegurar la legibilidad del texto -->
-            <div id="header-overlay" class="absolute inset-0 rounded-xl"></div>
+        <!-- Encabezado/Banner Limpio -->
+        <header id="main-header" class="text-center rounded-xl transition duration-500">
             
-            <div class="text-center relative z-20 p-6">
-                <!-- Botón de Admin (Flotante a la izquierda) -->
-                <button id="admin-button" onclick="toggleAdminPanel()" 
-                        class="absolute top-4 right-4 md:right-auto md:left-4 p-2 bg-gray-600 text-white rounded-lg shadow-lg hover:bg-gray-700 transition duration-150">
-                    ⚙️ Admin
-                </button>
-
-                <h1 class="text-4xl font-extrabold text-white mb-2">CLIMA PARA LA TABLAPANDILLA</h1>
-                <!-- Slogan configurable cargado desde Firestore -->
-                <p id="header-slogan" class="text-white text-lg font-medium">Cargando...</p>
+            <div class="p-0">
+                <h1 class="text-4xl font-extrabold text-sup-blue mb-2">CLIMA PARA LA TABLAPANDILLA</h1>
+                <!-- Slogan fijo -->
+                <p id="header-slogan" class="text-gray-600 text-lg font-medium">Cargando...</p>
             </div>
         </header>
 
@@ -882,7 +695,7 @@
                 const shoreDirection = degToCardinal(bearingToOrigin);
                 const shoreBearing = bearingToOrigin.toFixed(0);
 
-                // --- NUEVO BOTÓN DE GOOGLE MAPS ---
+                // --- BOTÓN DE GOOGLE MAPS ---
                 const mapsButtonHtml = `
                     <button onclick="openGoogleMaps(${lat}, ${lon})"
                             class="px-4 py-2 mb-4 w-full bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-150 flex items-center justify-center space-x-2">
@@ -995,7 +808,7 @@
 
                 // Contenido principal del modal (Resumen y Tabla)
                 windModalContent.innerHTML = `
-                    ${mapsButtonHtml} <!-- AÑADIDO: Botón de Google Maps -->
+                    ${mapsButtonHtml} <!-- Botón de Google Maps -->
                     ${recommendationHtml} <!-- Fila de valoración/descripción -->
                     ${shoreOrientationHtml} <!-- Contexto de Orientación de la Orilla -->
                     
@@ -1107,24 +920,38 @@
             tripDateInput.value = minDate; // Selecciona la fecha de hoy por defecto
         }
 
+        /**
+         * Abre Google Maps con la ruta desde Neuquén hasta el lago seleccionado.
+         */
+        function openGoogleMaps(lakeLat, lakeLon) {
+            const originLat = currentOrigin.lat;
+            const originLon = currentOrigin.lon;
+            
+            // Construir la URL de Google Maps para obtener la dirección (dir)
+            const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${lakeLat},${lakeLon}&travelmode=driving`;
+
+            // Abrir en una nueva ventana/pestaña
+            window.open(mapsUrl, '_blank');
+        }
+
         window.onload = function() {
-            // Inicializar Firebase y el Contador ANTES que el resto
+            // 1. Inicializar Firebase y el Contador
             if (typeof window.initializeFirebaseAndCounter === 'function') {
                 window.initializeFirebaseAndCounter();
             } else {
-                document.getElementById('visit-counter').textContent = ' (Contador no inicializado)';
+                document.getElementById('visit-counter').textContent = ' (Error de inicialización)';
             }
 
-            // 1. Inicializar el mapa
+            // 2. Inicializar el mapa
             initMap();
             
-            // 2. Inicializar el selector de fecha 
+            // 3. Inicializar el selector de fecha 
             initializeDateInput();
 
-            // 3. Asignar el listener al botón de búsqueda
+            // 4. Asignar el listener al botón de búsqueda
             searchButton.addEventListener('click', () => handleSearch());
             
-            // 4. Ejecutar la búsqueda automáticamente al cargar la página 
+            // 5. Ejecutar la búsqueda automáticamente al cargar la página 
             handleSearch();
         }
     </script>
