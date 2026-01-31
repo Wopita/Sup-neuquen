@@ -2,185 +2,210 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Tablapandilla | AI Wind Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        :root {
+            --header-height: 60px;
+        }
+        
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: #1f2937; }
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
         
-        #main-content {
-            height: calc(100vh - 64px); /* Altura dinámica restando el header */
+        body {
+            height: 100vh;
+            height: -webkit-fill-available;
+            overflow: hidden;
+        }
+
+        #main-layout {
+            height: calc(100vh - var(--header-height));
+            height: calc(100dvh - var(--header-height));
         }
 
         .ai-gradient {
             background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
         }
 
-        @keyframes pulse-soft {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        .animate-pulse-soft {
-            animation: pulse-soft 2s infinite;
-        }
-
         .glass-panel {
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(12px);
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        /* Transición para el chat móvil */
+        /* Sidebar Mobile: Overlay Estilo App Moderno */
         #sidebar-ai {
-            transition: transform 0.3s ease-in-out;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
         }
 
         @media (max-width: 768px) {
-            .mobile-hidden { transform: translateX(-100%); }
-            .mobile-visible { transform: translateX(0); }
+            .mobile-hidden { 
+                transform: translateX(-100%); 
+                opacity: 0;
+                pointer-events: none;
+            }
+            .mobile-visible { 
+                transform: translateX(0); 
+                opacity: 1;
+                pointer-events: auto;
+            }
+        }
+
+        /* Ajuste del Iframe para forzar visibilidad de tabla */
+        iframe {
+            min-height: 100%;
+            width: 100%;
         }
     </style>
 </head>
-<body class="bg-[#0f172a] text-slate-200 h-screen flex flex-col overflow-hidden">
+<body class="bg-[#0f172a] text-slate-200 flex flex-col">
 
     <!-- Header Principal -->
-    <header class="bg-[#1e293b] border-b border-slate-700 h-16 flex justify-between items-center px-4 shadow-lg z-50">
-        <div class="flex items-center gap-2 md:gap-3">
-            <button onclick="toggleMobileMenu()" class="md:hidden text-white p-2">
-                <i class="fa-solid fa-bars"></i>
+    <header class="bg-[#1e293b] border-b border-slate-700 h-[60px] flex justify-between items-center px-4 shadow-xl z-[110]">
+        <div class="flex items-center gap-2">
+            <button onclick="toggleMobileMenu()" class="md:hidden text-blue-400 p-2 hover:bg-slate-800 rounded-lg transition-colors">
+                <i class="fa-solid fa-bars-staggered text-xl"></i>
             </button>
-            <div class="bg-blue-600 p-1.5 rounded-lg shadow-inner">
-                <i class="fa-solid fa-wind text-white text-base md:text-xl"></i>
-            </div>
-            <div>
-                <h1 class="text-sm md:text-xl font-bold tracking-tight text-white uppercase italic leading-none">Tablapandilla <span class="text-blue-400 text-[10px] md:text-sm font-normal not-italic">v3.4</span></h1>
-                <p class="text-[8px] md:text-[10px] text-slate-400 font-mono tracking-widest uppercase">AI Dashboard</p>
+            <div class="flex items-center gap-2">
+                <div class="bg-blue-600 p-1.5 rounded-lg">
+                    <i class="fa-solid fa-wind text-white text-sm"></i>
+                </div>
+                <h1 class="text-sm md:text-lg font-bold text-white uppercase italic tracking-tighter">Tablapandilla <span class="text-blue-400 font-normal">v3.5</span></h1>
             </div>
         </div>
         
         <div class="flex items-center gap-2">
-            <button onclick="generateAIReport()" class="ai-gradient hover:opacity-90 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-[10px] md:text-sm font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95">
+            <button onclick="generateAIReport()" class="ai-gradient text-white px-3 py-1.5 rounded-full text-[10px] md:text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-transform">
                 <i class="fa-solid fa-wand-magic-sparkles"></i>
-                <span class="hidden xs:inline">✨ Informe IA</span>
+                <span class="hidden sm:inline">ANÁLISIS IA</span>
             </button>
-            <button onclick="toggleMobileMenu()" class="md:hidden bg-slate-800 text-blue-400 p-2 rounded-lg border border-slate-700">
-                <i class="fa-solid fa-comment-dots text-lg"></i>
+            <button onclick="toggleMobileMenu()" class="md:hidden bg-blue-500/10 text-blue-400 p-2 rounded-full border border-blue-500/20">
+                <i class="fa-solid fa-comment-dots"></i>
             </button>
         </div>
     </header>
 
-    <div id="main-content" class="flex flex-1 relative overflow-hidden">
+    <div id="main-layout" class="flex flex-1 relative overflow-hidden">
         
-        <!-- Sidebar: Chat & Spots -->
-        <aside id="sidebar-ai" class="absolute md:relative z-40 w-full md:w-80 bg-[#0b0f1a] border-r border-slate-800 h-full flex flex-col mobile-hidden md:transform-none">
+        <!-- Sidebar: Chat & Ubicaciones (Overlay en Mobile) -->
+        <aside id="sidebar-ai" class="absolute md:relative w-full md:w-[320px] bg-[#0b0f1a]/95 md:bg-[#0b0f1a] border-r border-slate-800 h-full flex flex-col mobile-hidden md:translate-x-0">
             
-            <!-- Header Móvil del Sidebar -->
-            <div class="md:hidden p-4 border-b border-slate-800 flex justify-between items-center bg-[#1e293b]">
-                <span class="font-bold text-blue-400">PANEL DE CONTROL</span>
-                <button onclick="toggleMobileMenu()" class="text-slate-400 text-xl">&times;</button>
-            </div>
-
-            <!-- Listado de Spots (Compacto) -->
+            <!-- Listado de Ubicaciones -->
             <div class="p-4 border-b border-slate-800/50">
-                <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-3">Ubicaciones</h2>
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Spots Tablapandilla</h2>
+                    <button onclick="toggleMobileMenu()" class="md:hidden text-slate-500 hover:text-white transition-colors">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
                 <div id="spots-list" class="grid grid-cols-2 md:grid-cols-1 gap-2"></div>
             </div>
             
-            <!-- Chat IA -->
+            <!-- Chat Inteligente -->
             <div class="p-4 flex flex-col flex-1 overflow-hidden">
-                <div class="flex justify-between items-center mb-2">
-                    <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Chat Gemini</h2>
-                    <span class="text-[9px] text-green-400 bg-green-400/10 px-2 py-0.5 rounded border border-green-400/20">ONLINE</span>
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <h2 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Gemini AI Assistant</h2>
                 </div>
-                <div id="chat-container" class="bg-slate-900/50 rounded-xl border border-slate-800 p-3 flex-1 overflow-y-auto text-[11px] space-y-3 flex flex-col">
-                    <div class="bg-blue-500/10 border border-blue-500/20 p-2 rounded-lg text-blue-300">
-                        ¡Hola Wopita! Preguntame lo que quieras sobre el viento.
+                
+                <div id="chat-container" class="bg-slate-900/40 rounded-2xl border border-slate-800/50 p-3 flex-1 overflow-y-auto text-[11px] space-y-3 flex flex-col">
+                    <div class="bg-blue-600/10 border border-blue-600/20 p-2.5 rounded-2xl text-blue-200">
+                        ¡Hola Wopita! 👋 Ya tengo los datos de Windy cargados. ¿Remamos hoy?
                     </div>
                 </div>
-                <div class="mt-3 flex gap-1">
-                    <input type="text" id="chat-input" placeholder="¿Está para remar?" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500 text-white">
-                    <button onclick="askAI()" class="bg-blue-600 p-2 rounded-lg hover:bg-blue-500 transition-colors shadow-lg">
-                        <i class="fa-solid fa-paper-plane text-xs"></i>
+
+                <!-- Input de Chat -->
+                <div class="mt-3 relative">
+                    <input type="text" id="chat-input" placeholder="Preguntá al experto..." class="w-full bg-slate-800/50 border border-slate-700 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-white placeholder-slate-500">
+                    <button onclick="askAI()" class="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-600 p-2 rounded-xl hover:bg-blue-500 shadow-lg shadow-blue-600/20 transition-all active:scale-90">
+                        <i class="fa-solid fa-paper-plane text-[10px]"></i>
                     </button>
                 </div>
             </div>
         </aside>
 
-        <!-- Contenedor del Mapa (Ocupa todo el resto) -->
-        <main class="flex-1 relative bg-[#0f172a] h-full">
+        <!-- Área Principal del Mapa -->
+        <main class="flex-1 relative bg-[#0f172a] h-full overflow-hidden">
             
-            <!-- Badge de Spot Actual -->
-            <div class="absolute top-4 right-4 z-30 pointer-events-none">
-                <div class="glass-panel px-3 py-1.5 md:px-4 md:py-2 rounded-xl border-blue-500/30">
-                    <p id="current-spot-label" class="text-[10px] md:text-xs font-bold text-white uppercase tracking-wider italic">Mari Menuco</p>
-                </div>
+            <!-- Loader Estilizado -->
+            <div id="map-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-[#0f172a] z-50 transition-opacity duration-500">
+                <div class="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+                <p class="mt-4 text-[9px] font-mono text-slate-500 uppercase tracking-widest">Sincronizando Telemetría...</p>
             </div>
 
-            <!-- Loader -->
-            <div id="map-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-[#0f172a] z-10 text-center px-4">
-                <div class="relative w-12 h-12 md:w-16 md:h-16">
-                    <div class="absolute inset-0 border-4 border-blue-500/20 rounded-full"></div>
-                    <div class="absolute inset-0 border-4 border-t-blue-500 rounded-full animate-spin"></div>
-                </div>
-                <p class="mt-4 text-[10px] font-mono text-slate-500 animate-pulse uppercase tracking-[0.2em]">Sincronizando Windy...</p>
-            </div>
-
-            <!-- Iframe de Windy (Ajustado para no cortarse) -->
+            <!-- Iframe de Windy -->
             <iframe 
                 id="windy-frame"
-                class="w-full h-full relative z-0 opacity-0 transition-opacity duration-700 border-none"
+                class="w-full h-full opacity-0 transition-opacity duration-1000"
                 src=""
                 allowfullscreen
-                onload="this.style.opacity='1'; document.getElementById('map-loader').style.display='none';">
+                onload="this.style.opacity='1'; setTimeout(() => document.getElementById('map-loader').style.opacity='0', 500); setTimeout(() => document.getElementById('map-loader').style.display='none', 1000);">
             </iframe>
 
-            <!-- Modal Reporte IA (Responsivo) -->
-            <div id="ai-modal" class="fixed inset-0 z-[60] flex items-center justify-center p-2 md:p-4 bg-black/90 backdrop-blur-md hidden">
-                <div class="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-                    <div class="ai-gradient p-4 md:p-6 flex justify-between items-center shadow-lg">
-                        <h3 class="text-base md:text-xl font-bold flex items-center gap-2">
-                            <i class="fa-solid fa-microchip"></i> Inteligencia de Spot
-                        </h3>
-                        <button onclick="closeAIModal()" class="text-white/70 hover:text-white text-3xl leading-none">&times;</button>
-                    </div>
-                    <div id="ai-content" class="p-4 md:p-8 overflow-y-auto leading-relaxed text-slate-300 text-sm md:text-base"></div>
+            <!-- Badge Flotante Info Spot -->
+            <div class="absolute top-4 right-4 z-10 pointer-events-none">
+                <div class="glass-panel px-3 py-1.5 rounded-full border-blue-500/20 shadow-2xl">
+                    <p id="current-spot-label" class="text-[10px] font-bold text-blue-400 uppercase italic tracking-wider">Cargando Spot...</p>
                 </div>
             </div>
         </main>
     </div>
 
+    <!-- Modal Reporte IA (Full Screen en Mobile) -->
+    <div id="ai-modal" class="fixed inset-0 z-[200] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/90 backdrop-blur-md hidden">
+        <div class="bg-slate-900 border-t md:border border-slate-700 w-full max-w-2xl rounded-t-3xl md:rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh] md:max-h-[80vh]">
+            <div class="ai-gradient p-5 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-robot text-xl"></i>
+                    <h3 class="text-sm md:text-lg font-bold uppercase tracking-tight">Análisis del Experto</h3>
+                </div>
+                <button onclick="closeAIModal()" class="bg-black/20 hover:bg-black/40 w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="ai-content" class="p-6 overflow-y-auto leading-relaxed text-slate-300 text-xs md:text-sm space-y-4"></div>
+        </div>
+    </div>
+
     <script>
+        // Tu API Key de Google Gemini
         const apiKey = "AIzaSyDjxdya7xT9iJuLnuRmjFAMrKPbNz3dC-U"; 
 
         const spots = [
-            { id: 1, nombre: "Nqn (Limay)", lat: -38.95, lon: -68.06, zoom: 11 },
-            { id: 2, nombre: "Mari Menuco", lat: -38.6241, lon: -68.4606, zoom: 12 },
-            { id: 3, nombre: "N. Huapi", lat: -41.13, lon: -71.31, zoom: 11 },
-            { id: 4, nombre: "El Chocón", lat: -39.26, lon: -68.79, zoom: 11 },
+            { id: 1, nombre: "Neuquén (Limay)", lat: -38.95, lon: -68.06, zoom: 11 },
+            { id: 2, nombre: "Lago Mari Menuco", lat: -38.62418, lon: -68.4606, zoom: 12 },
+            { id: 3, nombre: "Bariloche (Nahuel)", lat: -41.13, lon: -71.31, zoom: 11 },
+            { id: 4, nombre: "Villa El Chocón", lat: -39.26, lon: -68.79, zoom: 11 },
             { id: 5, nombre: "Las Grutas", lat: -40.81, lon: -65.09, zoom: 11 },
-            { id: 6, nombre: "Pucón", lat: -39.27, lon: -71.97, zoom: 11 }
+            { id: 6, nombre: "Pucón (Chile)", lat: -39.27, lon: -71.97, zoom: 11 }
         ];
 
         let currentSpot = spots[1]; 
+        const sidebar = document.getElementById('sidebar-ai');
         const windyFrame = document.getElementById('windy-frame');
         const spotsList = document.getElementById('spots-list');
         const currentSpotLabel = document.getElementById('current-spot-label');
-        const sidebar = document.getElementById('sidebar-ai');
 
         function toggleMobileMenu() {
-            sidebar.classList.toggle('mobile-hidden');
-            sidebar.classList.toggle('mobile-visible');
+            if (window.innerWidth < 768) {
+                sidebar.classList.toggle('mobile-hidden');
+                sidebar.classList.toggle('mobile-visible');
+            }
         }
 
         function getWindyUrl(lat, lon, zoom) {
+            // URL configurada para optimizar visibilidad de tabla de pronóstico
             const params = new URLSearchParams({
-                lat, lon, detailLat: lat, detailLon: lon, width: '100%', height: '100%',
-                zoom, level: 'surface', overlay: 'wind', product: 'ecmwf', 
-                message: 'true', marker: 'true', calendar: 'now', type: 'map', 
-                location: 'coordinates', detail: 'true', metricWind: 'kt', metricTemp: '°C'
+                lat, lon, detailLat: lat, detailLon: lon,
+                width: '100%', height: '100%', zoom, 
+                level: 'surface', overlay: 'wind', product: 'ecmwf', 
+                message: 'true', marker: 'true', calendar: 'now', 
+                location: 'coordinates', detail: 'true', 
+                metricWind: 'kt', metricTemp: '°C'
             });
             return `https://embed.windy.com/embed2.html?${params.toString()}`;
         }
@@ -189,13 +214,16 @@
             currentSpot = spots.find(s => s.id === parseInt(spotId));
             if (!currentSpot) return;
 
-            if (window.innerWidth < 768) toggleMobileMenu();
+            toggleMobileMenu(); // Cierra el menú al elegir spot
 
-            windyFrame.style.opacity = '0';
             document.getElementById('map-loader').style.display = 'flex';
+            document.getElementById('map-loader').style.opacity = '1';
+            
+            windyFrame.style.opacity = '0';
             windyFrame.src = getWindyUrl(currentSpot.lat, currentSpot.lon, currentSpot.zoom);
             currentSpotLabel.innerText = currentSpot.nombre;
 
+            // Update button styles
             document.querySelectorAll('.spot-btn').forEach(btn => {
                 btn.classList.remove('bg-blue-600', 'text-white', 'border-blue-400');
                 btn.classList.add('bg-slate-800/30', 'text-slate-400');
@@ -204,39 +232,41 @@
             if (activeBtn) activeBtn.classList.add('bg-blue-600', 'text-white', 'border-blue-400');
         }
 
-        async function fetchDetailedWeather(lat, lon) {
-            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=windspeed_10m,winddirection_10m,windgusts_10m&windspeed_unit=kn&timezone=auto`);
-            return await res.json();
-        }
-
         async function callGemini(prompt, systemInstruction) {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    systemInstruction: { parts: [{ text: systemInstruction }] }
-                })
-            });
-            const data = await response.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text || "Error en la IA.";
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        systemInstruction: { parts: [{ text: systemInstruction }] }
+                    })
+                });
+                const data = await response.json();
+                return data.candidates?.[0]?.content?.parts?.[0]?.text || "Mmm, no pude procesar eso. ¿Probamos de nuevo?";
+            } catch (err) {
+                return "Che, se cortó la onda con el satélite. Fijate si tenés internet.";
+            }
         }
 
         async function generateAIReport() {
             const modal = document.getElementById('ai-modal');
             const content = document.getElementById('ai-content');
             modal.classList.remove('hidden');
-            content.innerHTML = `<div class="flex flex-col items-center py-10"><div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div><p class="mt-4 text-xs font-mono text-slate-500 animate-pulse">Analizando spot...</p></div>`;
+            content.innerHTML = `<div class="flex flex-col items-center py-10"><div class="animate-spin h-8 w-8 border-2 border-blue-500 rounded-full border-t-transparent"></div><p class="mt-4 text-[10px] uppercase tracking-widest text-slate-500">Consultando modelos...</p></div>`;
 
             try {
-                const data = await fetchDetailedWeather(currentSpot.lat, currentSpot.lon);
+                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${currentSpot.lat}&longitude=${currentSpot.lon}&current_weather=true&hourly=windspeed_10m,windgusts_10m&windspeed_unit=kn&timezone=auto`);
+                const data = await weatherRes.json();
+                const wind = data.current_weather.windspeed;
+
                 const result = await callGemini(
-                    `Analiza ${currentSpot.nombre}. Viento ${data.current_weather.windspeed}kt. ¿Es apto para SUP?`,
-                    "Eres el Gurú de la Tablapandilla. Tono experto, breve y de Neuquén."
+                    `Analiza ${currentSpot.nombre}. Viento actual: ${wind} nudos.`,
+                    "Eres el Gurú de la Tablapandilla. Responde si es apto para SUP. Usa emojis. Tono neuquino experto."
                 );
-                content.innerHTML = `<div class="space-y-4">${result.replace(/\n/g, '<br>')}</div>`;
-            } catch (error) {
-                content.innerHTML = `<p class="text-red-400 text-center">Falla en la conexión.</p>`;
+                content.innerHTML = `<div class="prose prose-invert max-w-none">${result.replace(/\n/g, '<br>')}</div>`;
+            } catch (e) {
+                content.innerHTML = `<p class="text-red-400">Error al cargar datos.</p>`;
             }
         }
 
@@ -247,23 +277,21 @@
             if (!text) return;
 
             input.value = '';
-            container.innerHTML += `<div class="bg-slate-800 p-2 rounded-lg self-end text-slate-200 ml-4 border border-slate-700">${text}</div>`;
+            container.innerHTML += `<div class="bg-slate-800 p-2.5 rounded-2xl self-end text-slate-200 ml-4 border border-slate-700 shadow-sm">${text}</div>`;
             container.scrollTop = container.scrollHeight;
 
             const aiMsgDiv = document.createElement('div');
-            aiMsgDiv.className = "bg-blue-500/10 border border-blue-500/20 p-2 rounded-lg text-blue-300 mr-4 animate-pulse italic";
-            aiMsgDiv.innerText = "Sincronizando modelos...";
+            aiMsgDiv.className = "bg-blue-600/10 border border-blue-600/20 p-2.5 rounded-2xl text-blue-300 mr-4 animate-pulse italic";
+            aiMsgDiv.innerText = "Pensando...";
             container.appendChild(aiMsgDiv);
-            container.scrollTop = container.scrollHeight;
 
             try {
-                const data = await fetchDetailedWeather(currentSpot.lat, currentSpot.lon);
-                const response = await callGemini(text, `Asistente Tablapandilla. SPOT: ${currentSpot.nombre}. VIENTO: ${data.current_weather.windspeed}kt. Responde breve y amigable.`);
+                const response = await callGemini(text, `Asistente Tablapandilla. Spot: ${currentSpot.nombre}. Responde breve, amable y con onda.`);
                 aiMsgDiv.classList.remove('animate-pulse', 'italic');
                 aiMsgDiv.innerText = response;
                 container.scrollTop = container.scrollHeight;
             } catch (e) {
-                aiMsgDiv.innerText = "Error.";
+                aiMsgDiv.innerText = "Error de conexión.";
             }
         }
 
@@ -272,9 +300,9 @@
         function init() {
             spots.forEach(spot => {
                 const btn = document.createElement('button');
-                btn.className = "spot-btn flex-1 md:w-full flex items-center justify-center md:justify-start p-2 md:p-3 rounded-lg border transition-all duration-300 text-[10px] font-semibold bg-slate-800/30 text-slate-400 border-transparent hover:bg-slate-800/60";
+                btn.className = "spot-btn w-full p-2.5 rounded-xl border transition-all text-[10px] font-bold bg-slate-800/30 text-slate-400 border-transparent hover:bg-slate-800/60 flex items-center gap-2";
                 btn.dataset.id = spot.id;
-                btn.innerText = spot.nombre;
+                btn.innerHTML = `<i class="fa-solid fa-location-dot text-[8px]"></i> <span>${spot.nombre}</span>`;
                 btn.onclick = () => updateSpot(spot.id);
                 spotsList.appendChild(btn);
             });
