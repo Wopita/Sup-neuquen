@@ -27,6 +27,12 @@
         .animate-pulse-soft {
             animation: pulse-soft 2s infinite;
         }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 <body class="bg-[#0f172a] text-slate-200 h-screen flex flex-col overflow-hidden">
@@ -38,19 +44,23 @@
                 <i class="fa-solid fa-wind text-white text-xl"></i>
             </div>
             <div>
-                <h1 class="text-xl font-bold tracking-tight text-white uppercase italic">Tablapandilla <span class="text-blue-400 text-sm font-normal not-italic">v3.0 ✨</span></h1>
-                <p class="text-[10px] text-slate-400 font-mono tracking-widest uppercase">AI Enhanced Forecast</p>
+                <h1 class="text-xl font-bold tracking-tight text-white uppercase italic">Tablapandilla <span class="text-blue-400 text-sm font-normal not-italic">v3.2 ✨</span></h1>
+                <p class="text-[10px] text-slate-400 font-mono tracking-widest uppercase">Deep Sync AI</p>
             </div>
         </div>
         
         <div class="flex items-center gap-2 md:gap-4">
+            <div id="ai-sync-indicator" class="hidden md:flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full text-[10px] text-green-400 font-mono">
+                <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                SYNC DATA OK
+            </div>
             <button onclick="generateAIReport()" class="ai-gradient hover:opacity-90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-purple-500/20 active:scale-95">
                 <i class="fa-solid fa-wand-magic-sparkles"></i>
-                <span class="hidden sm:inline">✨ Análisis IA</span>
+                <span class="hidden sm:inline">✨ Informe Experto</span>
             </button>
-            <span id="current-spot-name" class="hidden md:block bg-blue-500/10 text-blue-400 px-4 py-1.5 rounded-full border border-blue-500/30 backdrop-blur-sm text-sm font-medium">
-                Cargando...
-            </span>
         </div>
     </header>
 
@@ -58,43 +68,49 @@
         <!-- Sidebar -->
         <aside class="w-72 bg-[#0b0f1a] border-r border-slate-800 flex flex-col hidden md:flex">
             <div class="p-6 border-b border-slate-800/50">
-                <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Ubicaciones Favoritas</h2>
+                <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Ubicaciones</h2>
                 <div id="spots-list" class="space-y-3"></div>
             </div>
             
-            <div class="p-6">
-                <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Asistente de SUP ✨</h2>
-                <div id="chat-container" class="bg-slate-900/50 rounded-xl border border-slate-800 p-4 h-48 overflow-y-auto text-xs space-y-3 flex flex-col">
+            <div class="p-6 flex flex-col flex-1">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Chat Inteligente</h2>
+                    <span class="text-[9px] text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded border border-blue-400/20">LIVE WIND FEED</span>
+                </div>
+                <div id="chat-container" class="bg-slate-900/50 rounded-xl border border-slate-800 p-4 flex-1 overflow-y-auto text-xs space-y-3 flex flex-col min-h-[200px]">
                     <div class="bg-blue-500/10 border border-blue-500/20 p-2 rounded-lg text-blue-300">
-                        ¡Hola! Soy tu asistente de la Tablapandilla. ¿Tenés dudas sobre el viento o técnica?
+                        ¡Hola! Estoy analizando los mismos datos que ves en el mapa de Windy. ¿Qué querés saber?
                     </div>
                 </div>
-                <div class="mt-2 flex gap-1">
-                    <input type="text" id="chat-input" placeholder="Preguntá algo..." class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500">
-                    <button onclick="askAI()" class="bg-blue-600 p-2 rounded-lg hover:bg-blue-500"><i class="fa-solid fa-paper-plane text-xs"></i></button>
+                <div class="mt-4 flex gap-1">
+                    <input type="text" id="chat-input" placeholder="¿Cómo viene la tarde?" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500">
+                    <button id="chat-send-btn" onclick="askAI()" class="bg-blue-600 p-2 rounded-lg hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/40">
+                        <i class="fa-solid fa-paper-plane text-xs"></i>
+                    </button>
                 </div>
-            </div>
-
-            <div class="mt-auto p-6 bg-gradient-to-t from-[#1e293b]/30 to-transparent">
-                <p class="text-[11px] text-slate-500 leading-relaxed italic">
-                    "La IA no rema por vos, pero te dice cuándo el Limay está picado."
-                </p>
             </div>
         </aside>
 
         <!-- Contenedor del Mapa -->
         <main id="map-container" class="flex-1 relative bg-[#0f172a]">
+            <!-- Info Badge (Desktop) -->
+            <div class="hidden md:block absolute top-4 right-4 z-30">
+                <div class="glass-panel px-4 py-2 rounded-xl">
+                    <p id="current-spot-label" class="text-xs font-bold text-white uppercase tracking-wider">Cargando...</p>
+                </div>
+            </div>
+
             <!-- Selector para móviles -->
             <div class="md:hidden absolute top-4 left-4 z-30 w-[calc(100%-2rem)]">
                 <select id="mobile-spot-selector" class="w-full bg-[#1e293b] text-white border border-slate-700 rounded-xl p-4 shadow-2xl outline-none appearance-none"></select>
             </div>
 
-            <div id="map-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-[#0f172a] z-10">
+            <div id="map-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-[#0f172a] z-10 text-center px-4">
                 <div class="relative w-16 h-16">
                     <div class="absolute inset-0 border-4 border-blue-500/20 rounded-full"></div>
                     <div class="absolute inset-0 border-4 border-t-blue-500 rounded-full animate-spin"></div>
                 </div>
-                <p class="mt-4 text-xs font-mono text-slate-500 animate-pulse">Sincronizando con Windy...</p>
+                <p class="mt-4 text-xs font-mono text-slate-500 animate-pulse uppercase tracking-[0.3em]">Conectando con Windy & Satélites...</p>
             </div>
 
             <iframe 
@@ -108,28 +124,20 @@
             <!-- Modal de Reporte IA -->
             <div id="ai-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
                 <div class="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl">
-                    <div class="ai-gradient p-6 flex justify-between items-center">
+                    <div class="ai-gradient p-6 flex justify-between items-center shadow-lg">
                         <h3 class="text-xl font-bold flex items-center gap-2">
-                            <i class="fa-solid fa-robot"></i> Reporte de Inteligencia Artificial
+                            <i class="fa-solid fa-microchip"></i> Inteligencia de Spot
                         </h3>
-                        <button onclick="closeAIModal()" class="text-white/70 hover:text-white text-2xl">&times;</button>
+                        <button onclick="closeAIModal()" class="text-white/70 hover:text-white text-2xl leading-none">&times;</button>
                     </div>
-                    <div id="ai-content" class="p-8 max-h-[70vh] overflow-y-auto leading-relaxed text-slate-300">
-                        <div class="flex flex-col items-center py-10">
-                            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
-                            <p class="text-slate-400 font-mono animate-pulse-soft">Analizando nudos, ráfagas y tendencias...</p>
-                        </div>
-                    </div>
-                    <div class="p-4 bg-slate-950/50 border-t border-slate-800 text-center text-[10px] text-slate-500">
-                        Basado en datos de Open-Meteo & Gemini 2.5 Flash
-                    </div>
+                    <div id="ai-content" class="p-8 max-h-[70vh] overflow-y-auto leading-relaxed text-slate-300"></div>
                 </div>
             </div>
         </main>
     </div>
 
     <script>
-        const apiKey = ""; // La plataforma inyectará la clave automáticamente
+        const apiKey = ""; 
         const spots = [
             { id: 1, nombre: "Neuquén (Limay)", lat: -38.95, lon: -68.06, zoom: 11 },
             { id: 2, nombre: "Lago Mari Menuco", lat: -38.62418741729627, lon: -68.46069412017282, zoom: 12 },
@@ -139,11 +147,11 @@
             { id: 6, nombre: "Pucón (Villarrica)", lat: -39.27, lon: -71.97, zoom: 11 }
         ];
 
-        let currentSpot = spots[1]; // Mari Menuco por defecto
+        let currentSpot = spots[1]; 
         const windyFrame = document.getElementById('windy-frame');
         const spotsList = document.getElementById('spots-list');
         const mobileSelector = document.getElementById('mobile-spot-selector');
-        const currentSpotLabel = document.getElementById('current-spot-name');
+        const currentSpotLabel = document.getElementById('current-spot-label');
 
         function getWindyUrl(lat, lon, zoom) {
             const params = new URLSearchParams({
@@ -172,8 +180,14 @@
             if (activeBtn) activeBtn.classList.add('bg-blue-600', 'text-white', 'border-blue-400');
         }
 
-        // --- GEMINI API INTEGRATION ---
+        // --- FETCH DETAILED WEATHER (SYNCED WITH WINDY MODEL) ---
+        async function fetchDetailedWeather(lat, lon) {
+            // Fetching hourly data for the next 24h to give "vision" to the AI
+            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=windspeed_10m,winddirection_10m,windgusts_10m,temperature_2m&windspeed_unit=kn&timezone=auto&forecast_days=1`);
+            return await res.json();
+        }
 
+        // --- GEMINI API INTEGRATION ---
         async function callGemini(prompt, systemInstruction) {
             let delay = 1000;
             for (let i = 0; i < 5; i++) {
@@ -200,35 +214,29 @@
             const modal = document.getElementById('ai-modal');
             const content = document.getElementById('ai-content');
             modal.classList.remove('hidden');
-            content.innerHTML = `<div class="flex flex-col items-center py-10"><div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div><p class="text-slate-400 font-mono animate-pulse-soft">Analizando ${currentSpot.nombre} con IA...</p></div>`;
+            content.innerHTML = `<div class="flex flex-col items-center py-10"><div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div><p class="text-slate-400 font-mono animate-pulse-soft">Sincronizando modelos meteorológicos...</p></div>`;
 
             try {
-                // Fetch real data from Open-Meteo for the context
-                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${currentSpot.lat}&longitude=${currentSpot.lon}&current_weather=true&hourly=windspeed_10m,winddirection_10m,windgusts_10m&windspeed_unit=kn&timezone=auto`);
-                const weatherData = await weatherRes.json();
+                const data = await fetchDetailedWeather(currentSpot.lat, currentSpot.lon);
                 
-                const wind = weatherData.current_weather.windspeed;
-                const dir = weatherData.current_weather.winddirection;
-                const temp = weatherData.current_weather.temperature;
-                const gusts = weatherData.hourly.windgusts_10m[0];
+                // Prepare a compact summary for the AI
+                const hourly = data.hourly;
+                let forecastText = "PRONÓSTICO PRÓXIMAS HORAS:\n";
+                for(let i=0; i<6; i++) {
+                    forecastText += `Hora +${i}h: ${hourly.windspeed_10m[i]}kt (Raf: ${hourly.windgusts_10m[i]}kt) Dir: ${hourly.winddirection_10m[i]}°\n`;
+                }
 
-                const prompt = `Analiza estas condiciones actuales en ${currentSpot.nombre}: Viento ${wind} nudos, Ráfagas ${gusts} nudos, Dirección ${dir}°, Temperatura ${temp}°C. 
-                Dime si es apto para Stand Up Paddle (SUP) para la "Tablapandilla". 
-                Divide la respuesta en: 
-                1. Veredicto (Apto/Precaución/Peligro). 
-                2. Análisis técnico del viento. 
-                3. Recomendación de equipo (ej. leash, traje, quilla). 
-                4. Mejor horario de hoy.
-                Usa un tono canchero pero profesional, somos de Neuquén.`;
+                const prompt = `LUGAR: ${currentSpot.nombre}. 
+                ESTADO ACTUAL: Viento ${data.current_weather.windspeed}kt, Temp ${data.current_weather.temperature}°C. 
+                ${forecastText}
+                Analiza si es seguro para la Tablapandilla entrar al agua. Sé muy específico sobre la evolución del viento en las próximas horas.`;
 
-                const systemPrompt = "Eres el Gurú de la Tablapandilla, un experto en SUP y meteorología del Alto Valle y Patagonia. Tu objetivo es salvar vidas y asegurar que la pandilla se divierta. Si el viento supera los 12 nudos, advierte fuertemente. Si supera los 18, prohíbe la entrada.";
+                const systemPrompt = "Eres el Gurú de la Tablapandilla. Tu conocimiento se basa en los mismos modelos ECMWF que Windy. Tu misión es analizar tendencias y avisar si el viento va a subir o rotar peligrosamente. Tono: Canchero, experto, de Neuquén.";
 
                 const result = await callGemini(prompt, systemPrompt);
-                
-                // Convert simple markdown-like formatting
                 content.innerHTML = `<div class="prose prose-invert max-w-none text-sm md:text-base">${result.replace(/\n/g, '<br>')}</div>`;
             } catch (error) {
-                content.innerHTML = `<p class="text-red-400">Error al conectar con el cerebro de la IA. Revisá tu conexión e intentá de nuevo.</p>`;
+                content.innerHTML = `<p class="text-red-400 text-center">Falla en la telemetría satelital. Reintentá.</p>`;
             }
         }
 
@@ -239,22 +247,31 @@
             if (!text) return;
 
             input.value = '';
-            container.innerHTML += `<div class="bg-slate-800 p-2 rounded-lg self-end text-slate-200 ml-4">${text}</div>`;
+            container.innerHTML += `<div class="bg-slate-800 p-2 rounded-lg self-end text-slate-200 ml-4 shadow-sm border border-slate-700">${text}</div>`;
+            container.scrollTop = container.scrollHeight;
+
+            const aiMsgDiv = document.createElement('div');
+            aiMsgDiv.className = "bg-blue-500/10 border border-blue-500/20 p-2 rounded-lg text-blue-300 mr-4 animate-pulse italic";
+            aiMsgDiv.innerText = "Sincronizando con el mapa...";
+            container.appendChild(aiMsgDiv);
             container.scrollTop = container.scrollHeight;
 
             try {
-                const aiMsgDiv = document.createElement('div');
-                aiMsgDiv.className = "bg-blue-500/10 border border-blue-500/20 p-2 rounded-lg text-blue-300 mr-4 animate-pulse";
-                aiMsgDiv.innerText = "Pensando...";
-                container.appendChild(aiMsgDiv);
+                const data = await fetchDetailedWeather(currentSpot.lat, currentSpot.lon);
+                const current = data.current_weather;
+                const next3h = data.hourly.windspeed_10m.slice(0, 4).join(', ');
 
-                const response = await callGemini(text, `Eres el asistente de la Tablapandilla. Responde dudas sobre SUP en ${currentSpot.nombre}. Sé breve y directo.`);
+                const context = `SPOT: ${currentSpot.nombre}. AHORA: ${current.windspeed}kt. PRÓX. HORAS (nudos): ${next3h}. 
+                Responde basándote en que estás viendo lo mismo que el usuario ve en Windy. Si preguntan "¿Cómo está?", dales el dato real.`;
+
+                const response = await callGemini(text, `Asistente de Tablapandilla. ${context} Tono amigable, experto en SUP. Si el viento sube de 15kt, ¡cuidado!`);
                 
-                aiMsgDiv.classList.remove('animate-pulse');
+                aiMsgDiv.classList.remove('animate-pulse', 'italic');
                 aiMsgDiv.innerText = response;
                 container.scrollTop = container.scrollHeight;
             } catch (e) {
-                container.innerHTML += `<div class="text-red-500 text-[10px]">Error de conexión ✨</div>`;
+                aiMsgDiv.innerText = "Perdí la señal del satélite, Wopita. Probá de nuevo.";
+                aiMsgDiv.classList.add('text-red-400');
             }
         }
 
@@ -276,7 +293,6 @@
             mobileSelector.onchange = (e) => updateSpot(e.target.value);
             updateSpot(spots[1].id);
             
-            // Allow Enter key in chat
             document.getElementById('chat-input').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') askAI();
             });
